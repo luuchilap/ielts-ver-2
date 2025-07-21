@@ -1,0 +1,54 @@
+{
+  "name": "ielts-client-backend",
+  "version": "1.0.0",
+  "description": "IELTS Client Backend API - Student-facing API server",
+  "main": "src/server.js",
+  "scripts": {
+    "dev": "nodemon src/server.js",
+    "start": "node src/server.js",
+    "seed": "node src/scripts/seedDatabase.js",
+    "test": "jest",
+    "build": "echo 'No build step required for Node.js'",
+    "lint": "eslint src --ext .js",
+    "lint:fix": "eslint src --ext .js --fix"
+  },
+  "keywords": [
+    "ielts",
+    "api",
+    "express",
+    "mongodb",
+    "student",
+    "client"
+  ],
+  "author": "IELTS Team",
+  "license": "MIT",
+  "dependencies": {
+    "express": "^4.18.2",
+    "mongoose": "^7.5.0",
+    "cors": "^2.8.5",
+    "dotenv": "^16.3.1",
+    "bcryptjs": "^2.4.3",
+    "jsonwebtoken": "^9.0.2",
+    "express-validator": "^7.0.1",
+    "multer": "^1.4.5-lts.1",
+    "helmet": "^7.0.0",
+    "express-rate-limit": "^6.10.0",
+    "morgan": "^1.10.0",
+    "nodemailer": "^6.9.4",
+    "crypto": "^1.0.1",
+    "express-fileupload": "^1.4.0",
+    "sharp": "^0.32.5",
+    "validator": "^13.11.0",
+    "moment": "^2.29.4",
+    "compression": "^1.7.4"
+  },
+  "devDependencies": {
+    "nodemon": "^3.0.1",
+    "jest": "^29.6.2",
+    "supertest": "^6.3.3",
+    "eslint": "^8.49.0"
+  },
+  "engines": {
+    "node": ">=16.0.0"
+  }
+}
