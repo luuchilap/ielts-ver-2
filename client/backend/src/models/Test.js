@@ -327,7 +327,7 @@ const testSchema = new mongoose.Schema({
       type: Number,
       min: 0,
       max: 9,
-      default: 6
+      default: 7
     }
   }
 }, {
