@@ -8,6 +8,8 @@ const rateLimit = require('express-rate-limit');
 const connectDB = require('./config/database');
 
 const app = express();
+//trust proxy
+app.set('trust proxy', 1);
 
 // Connect to database
 connectDB();

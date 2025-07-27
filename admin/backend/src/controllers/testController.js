@@ -1,6 +1,77 @@
 const { validationResult } = require('express-validator');
 const Test = require('../models/Test');
 
+// Utility function to ensure all sections/questions/tasks/parts have proper string IDs
+const ensureStringIds = (data) => {
+  if (!data) return data;
+
+  // Helper to generate a simple string ID if missing
+  const generateId = (prefix = '') => `${prefix}${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+
+  // Create a deep copy to avoid mutating original data
+  const processedData = JSON.parse(JSON.stringify(data));
+
+  // Process reading sections
+  if (processedData.sections) {
+    processedData.sections = processedData.sections.map((section, sectionIndex) => {
+      // Ensure section has string ID
+      if (!section.id) {
+        section.id = section._id || generateId('section-');
+      }
+      // Remove MongoDB _id if present
+      delete section._id;
+
+      // Process questions
+      if (section.questions) {
+        section.questions = section.questions.map((question, questionIndex) => {
+          // Ensure question has string ID
+          if (!question.id) {
+            question.id = question._id || generateId('question-');
+          }
+          // Remove MongoDB _id if present
+          delete question._id;
+          return question;
+        });
+      }
+      return section;
+    });
+  }
+
+  // Process writing tasks
+  if (processedData.tasks) {
+    processedData.tasks = processedData.tasks.map((task, taskIndex) => {
+      if (!task.id) {
+        task.id = task._id || generateId('task-');
+      }
+      delete task._id;
+      return task;
+    });
+  }
+
+  // Process speaking parts
+  if (processedData.parts) {
+    processedData.parts = processedData.parts.map((part, partIndex) => {
+      if (!part.id) {
+        part.id = part._id || generateId('part-');
+      }
+      delete part._id;
+
+      if (part.questions) {
+        part.questions = part.questions.map((question, questionIndex) => {
+          if (!question.id) {
+            question.id = question._id || generateId('question-');
+          }
+          delete question._id;
+          return question;
+        });
+      }
+      return part;
+    });
+  }
+
+  return processedData;
+};
+
 // Get all tests with pagination and filtering
 const getAllTests = async (req, res) => {
   try {
@@ -109,6 +180,20 @@ const createTest = async (req, res) => {
       lastModifiedBy: req.user._id
     };
 
+    // Ensure all IDs are strings
+    if (testData.reading) {
+      testData.reading = ensureStringIds(testData.reading);
+    }
+    if (testData.listening) {
+      testData.listening = ensureStringIds(testData.listening);
+    }
+    if (testData.writing) {
+      testData.writing = ensureStringIds(testData.writing);
+    }
+    if (testData.speaking) {
+      testData.speaking = ensureStringIds(testData.speaking);
+    }
+
     const test = new Test(testData);
     await test.save();
 
@@ -133,6 +218,7 @@ const updateTest = async (req, res) => {
   try {
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
+      console.log('Validation errors:', errors.array());
       return res.status(400).json({
         success: false,
         message: 'Validation failed',
@@ -141,10 +227,27 @@ const updateTest = async (req, res) => {
     }
 
     const { id } = req.params;
+    console.log('Updating test with ID:', id);
+    console.log('Update data:', JSON.stringify(req.body, null, 2));
+    
     const updateData = {
       ...req.body,
       lastModifiedBy: req.user._id
     };
+
+    // Ensure all IDs are strings
+    if (updateData.reading) {
+      updateData.reading = ensureStringIds(updateData.reading);
+    }
+    if (updateData.listening) {
+      updateData.listening = ensureStringIds(updateData.listening);
+    }
+    if (updateData.writing) {
+      updateData.writing = ensureStringIds(updateData.writing);
+    }
+    if (updateData.speaking) {
+      updateData.speaking = ensureStringIds(updateData.speaking);
+    }
 
     const test = await Test.findByIdAndUpdate(
       id,
@@ -161,6 +264,7 @@ const updateTest = async (req, res) => {
       });
     }
 
+    console.log('Test updated successfully:', test._id);
     res.json({
       success: true,
       message: 'Test updated successfully',
@@ -170,7 +274,8 @@ const updateTest = async (req, res) => {
     console.error('Update test error:', error);
     res.status(500).json({
       success: false,
-      message: 'Failed to update test'
+      message: 'Failed to update test',
+      error: error.message
     });
   }
 };

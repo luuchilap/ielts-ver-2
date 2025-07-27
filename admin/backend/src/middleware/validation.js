@@ -117,6 +117,86 @@ const validateTestCreation = [
     .withMessage('Each tag must be between 1 and 50 characters')
 ];
 
+// Validation rules for test updates (more flexible)
+const validateTestUpdate = [
+  body('title')
+    .optional()
+    .trim()
+    .isLength({ min: 3, max: 200 })
+    .withMessage('Test title must be between 3 and 200 characters'),
+  
+  body('description')
+    .optional()
+    .trim()
+    .isLength({ max: 1000 })
+    .withMessage('Description must not exceed 1000 characters'),
+  
+  body('difficulty')
+    .optional()
+    .isIn(['beginner', 'intermediate', 'advanced'])
+    .withMessage('Invalid difficulty level'),
+  
+  body('totalTime')
+    .optional()
+    .isInt({ min: 30, max: 300 })
+    .withMessage('Total time must be between 30 and 300 minutes'),
+  
+  body('tags')
+    .optional()
+    .isArray()
+    .withMessage('Tags must be an array'),
+  
+  body('tags.*')
+    .optional()
+    .trim()
+    .isLength({ min: 1, max: 50 })
+    .withMessage('Each tag must be between 1 and 50 characters'),
+
+  // Allow reading section updates
+  body('reading')
+    .optional()
+    .isObject()
+    .withMessage('Reading section must be an object'),
+    
+  body('reading.sections')
+    .optional()
+    .isArray()
+    .withMessage('Reading sections must be an array'),
+    
+  // Allow listening section updates
+  body('listening')
+    .optional()
+    .isObject()
+    .withMessage('Listening section must be an object'),
+    
+  body('listening.sections')
+    .optional()
+    .isArray()
+    .withMessage('Listening sections must be an array'),
+    
+  // Allow writing section updates
+  body('writing')
+    .optional()
+    .isObject()
+    .withMessage('Writing section must be an object'),
+    
+  body('writing.tasks')
+    .optional()
+    .isArray()
+    .withMessage('Writing tasks must be an array'),
+    
+  // Allow speaking section updates
+  body('speaking')
+    .optional()
+    .isObject()
+    .withMessage('Speaking section must be an object'),
+    
+  body('speaking.parts')
+    .optional()
+    .isArray()
+    .withMessage('Speaking parts must be an array')
+];
+
 // Validation rules for reading section
 const validateReadingSection = [
   body('title')
@@ -141,5 +221,6 @@ module.exports = {
   validateProfileUpdate,
   validatePasswordChange,
   validateTestCreation,
+  validateTestUpdate,
   validateReadingSection
 }; 

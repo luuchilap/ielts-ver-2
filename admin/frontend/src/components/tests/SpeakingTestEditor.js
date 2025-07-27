@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
+import { useQuery, useMutation, useQueryClient } from 'react-query';
 import { 
   Save,
   ArrowLeft,
@@ -11,6 +12,7 @@ import {
   Award
 } from 'lucide-react';
 import { toast } from 'react-hot-toast';
+import { testsAPI } from '../../services/api';
 import SpeakingPart1Editor from './speaking/SpeakingPart1Editor';
 import SpeakingPart2Editor from './speaking/SpeakingPart2Editor';
 import SpeakingPart3Editor from './speaking/SpeakingPart3Editor';
@@ -19,6 +21,7 @@ import SpeakingPreview from './speaking/SpeakingPreview';
 const SpeakingTestEditor = () => {
   const { testId } = useParams();
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   
   const [speakingData, setSpeakingData] = useState({
     part1: {
@@ -81,13 +84,82 @@ const SpeakingTestEditor = () => {
 
   const [activePart, setActivePart] = useState('part1');
   const [showPreview, setShowPreview] = useState(false);
-  const [saving, setSaving] = useState(false);
+
+  // Load test data
+  const {
+    data: test,
+    isLoading: isLoadingTest,
+    error: testError,
+    refetch
+  } = useQuery(
+    ['test', testId],
+    () => testsAPI.getById(testId),
+    {
+      enabled: !!testId && testId !== 'new',
+      retry: 1,
+      refetchOnMount: true,
+      refetchOnWindowFocus: false,
+      onSuccess: (data) => {
+        const testData = data?.data?.data?.test;
+        if (testData?.speaking?.parts) {
+          const parts = testData.speaking.parts;
+          setSpeakingData({
+            part1: parts.find(p => p.id === 'part-1') || {
+              id: 'part-1', title: 'Part 1: Introduction & Interview', timeLimit: 5, description: 'General questions about yourself and familiar topics', topics: [ { id: 'topic-1', name: 'Home/Accommodation', questions: [] }, { id: 'topic-2', name: 'Work/Study', questions: [] }, { id: 'topic-3', name: 'Familiar Topic', questions: [] } ]
+            },
+            part2: parts.find(p => p.id === 'part-2') || {
+              id: 'part-2', title: 'Part 2: Long Turn', timeLimit: 4, preparationTime: 1, speakingTime: 2, description: 'Speak about a given topic using cue card', cueCard: { topic: '', description: '', points: ['', '', '', ''], instructions: 'You will have to talk about the topic for one to two minutes. You have one minute to think about what you are going to say. You can make some notes to help you if you wish.' }, followUpQuestions: []
+            },
+            part3: parts.find(p => p.id === 'part-3') || {
+              id: 'part-3', title: 'Part 3: Discussion', timeLimit: 5, description: 'Discussion of more abstract ideas related to Part 2 topic', themes: [ { id: 'theme-1', name: 'Abstract Theme 1', questions: [] }, { id: 'theme-2', name: 'Abstract Theme 2', questions: [] } ]
+            }
+          });
+        } else {
+          setSpeakingData({
+            part1: { id: 'part-1', title: 'Part 1: Introduction & Interview', timeLimit: 5, description: 'General questions about yourself and familiar topics', topics: [ { id: 'topic-1', name: 'Home/Accommodation', questions: [] }, { id: 'topic-2', name: 'Work/Study', questions: [] }, { id: 'topic-3', name: 'Familiar Topic', questions: [] } ] },
+            part2: { id: 'part-2', title: 'Part 2: Long Turn', timeLimit: 4, preparationTime: 1, speakingTime: 2, description: 'Speak about a given topic using cue card', cueCard: { topic: '', description: '', points: ['', '', '', ''], instructions: 'You will have to talk about the topic for one to two minutes. You have one minute to think about what you are going to say. You can make some notes to help you if you wish.' }, followUpQuestions: [] },
+            part3: { id: 'part-3', title: 'Part 3: Discussion', timeLimit: 5, description: 'Discussion of more abstract ideas related to Part 2 topic', themes: [ { id: 'theme-1', name: 'Abstract Theme 1', questions: [] }, { id: 'theme-2', name: 'Abstract Theme 2', questions: [] } ] }
+          });
+        }
+      }
+    }
+  );
+
+  // Reset state khi testId thay đổi (tránh giữ lại state cũ)
+  useEffect(() => {
+    setSpeakingData({
+      part1: { id: 'part-1', title: 'Part 1: Introduction & Interview', timeLimit: 5, description: 'General questions about yourself and familiar topics', topics: [ { id: 'topic-1', name: 'Home/Accommodation', questions: [] }, { id: 'topic-2', name: 'Work/Study', questions: [] }, { id: 'topic-3', name: 'Familiar Topic', questions: [] } ] },
+      part2: { id: 'part-2', title: 'Part 2: Long Turn', timeLimit: 4, preparationTime: 1, speakingTime: 2, description: 'Speak about a given topic using cue card', cueCard: { topic: '', description: '', points: ['', '', '', ''], instructions: 'You will have to talk about the topic for one to two minutes. You have one minute to think about what you are going to say. You can make some notes to help you if you wish.' }, followUpQuestions: [] },
+      part3: { id: 'part-3', title: 'Part 3: Discussion', timeLimit: 5, description: 'Discussion of more abstract ideas related to Part 2 topic', themes: [ { id: 'theme-1', name: 'Abstract Theme 1', questions: [] }, { id: 'theme-2', name: 'Abstract Theme 2', questions: [] } ] }
+    });
+    refetch(); // Luôn fetch lại dữ liệu khi mount
+    return () => {
+      setSpeakingData({
+        part1: { id: 'part-1', title: 'Part 1: Introduction & Interview', timeLimit: 5, description: 'General questions about yourself and familiar topics', topics: [ { id: 'topic-1', name: 'Home/Accommodation', questions: [] }, { id: 'topic-2', name: 'Work/Study', questions: [] }, { id: 'topic-3', name: 'Familiar Topic', questions: [] } ] },
+        part2: { id: 'part-2', title: 'Part 2: Long Turn', timeLimit: 4, preparationTime: 1, speakingTime: 2, description: 'Speak about a given topic using cue card', cueCard: { topic: '', description: '', points: ['', '', '', ''], instructions: 'You will have to talk about the topic for one to two minutes. You have one minute to think about what you are going to say. You can make some notes to help you if you wish.' }, followUpQuestions: [] },
+        part3: { id: 'part-3', title: 'Part 3: Discussion', timeLimit: 5, description: 'Discussion of more abstract ideas related to Part 2 topic', themes: [ { id: 'theme-1', name: 'Abstract Theme 1', questions: [] }, { id: 'theme-2', name: 'Abstract Theme 2', questions: [] } ] }
+      });
+    };
+  }, [testId]);
+
+  // Save test data mutation
+  const saveTestMutation = useMutation(
+    (data) => testsAPI.update(testId, data),
+    {
+      onSuccess: () => {
+        toast.success('Speaking test saved successfully!');
+        queryClient.invalidateQueries(['test', testId]);
+        queryClient.invalidateQueries(['tests']);
+      },
+      onError: (error) => {
+        console.error('Save error:', error);
+        toast.error('Failed to save speaking test');
+      }
+    }
+  );
 
   useEffect(() => {
-    // Load existing speaking data if editing
-    if (testId && testId !== 'new') {
-      // TODO: Load from API
-    }
+    // No longer needed as data is loaded via useQuery
   }, [testId]);
 
   const handleBack = () => {
@@ -105,34 +177,31 @@ const SpeakingTestEditor = () => {
   };
 
   const handleSave = async () => {
-    setSaving(true);
-    try {
-      // Validate data
-      const errors = validateSpeakingData();
-      if (errors.length > 0) {
-        toast.error(`Please fix the following errors: ${errors.join(', ')}`);
-        return;
-      }
-
-      // API call to save speaking test data
-      await new Promise(resolve => setTimeout(resolve, 1000)); // Simulate API call
-      toast.success('Speaking test saved successfully!');
-    } catch (error) {
-      toast.error('Failed to save speaking test');
-    } finally {
-      setSaving(false);
+    // Validate data
+    const errors = validateSpeakingData();
+    if (errors.length > 0) {
+      toast.error(`Please fix the following errors: ${errors.join(', ')}`);
+      return;
     }
+
+    // Prepare data for API
+    const updateData = {
+      speaking: {
+        parts: [speakingData.part1, speakingData.part2, speakingData.part3],
+        totalTime: speakingData.part1.timeLimit + speakingData.part2.timeLimit + speakingData.part3.timeLimit
+      }
+    };
+
+    saveTestMutation.mutate(updateData);
   };
 
   const validateSpeakingData = () => {
     const errors = [];
     
     // Part 1 validation
-    const part1HasQuestions = speakingData.part1.topics.some(topic => 
-      topic.questions && topic.questions.length > 0
-    );
+    const part1HasQuestions = speakingData.part1.topics.some(topic => topic.questions.length > 0);
     if (!part1HasQuestions) {
-      errors.push('Part 1 needs at least one question');
+      errors.push('Part 1 must have at least one question in any topic');
     }
 
     // Part 2 validation
@@ -141,11 +210,9 @@ const SpeakingTestEditor = () => {
     }
 
     // Part 3 validation
-    const part3HasQuestions = speakingData.part3.themes.some(theme => 
-      theme.questions && theme.questions.length > 0
-    );
+    const part3HasQuestions = speakingData.part3.themes.some(theme => theme.questions.length > 0);
     if (!part3HasQuestions) {
-      errors.push('Part 3 needs at least one question');
+      errors.push('Part 3 must have at least one question in any theme');
     }
 
     return errors;
@@ -163,6 +230,52 @@ const SpeakingTestEditor = () => {
         data={speakingData}
         onBack={() => setShowPreview(false)}
       />
+    );
+  }
+
+  // Show loading state
+  if (isLoadingTest || (testId !== 'new' && !test)) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="loading-spinner w-8 h-8"></div>
+      </div>
+    );
+  }
+
+  // Show error state
+  if (testError) {
+    return (
+      <div className="p-6">
+        <div className="text-center">
+          <h2 className="text-2xl font-bold text-red-600 mb-4">Error Loading Test</h2>
+          <p className="text-gray-600 mb-4">Failed to load test data. Please try again.</p>
+          <button
+            onClick={() => navigate('/tests')}
+            className="btn btn-primary"
+          >
+            Back to Tests
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  // Get current part with safety check
+  const currentPart = speakingData[activePart];
+  if (!currentPart) {
+    return (
+      <div className="p-6">
+        <div className="text-center">
+          <h2 className="text-2xl font-bold text-red-600 mb-4">Part Not Found</h2>
+          <p className="text-gray-600 mb-4">The selected part doesn't exist.</p>
+          <button
+            onClick={() => navigate('/tests')}
+            className="btn btn-primary"
+          >
+            Back to Tests
+          </button>
+        </div>
+      </div>
     );
   }
 
@@ -195,11 +308,11 @@ const SpeakingTestEditor = () => {
           </button>
           <button
             onClick={handleSave}
-            disabled={saving}
+            disabled={saveTestMutation.isLoading}
             className="flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50"
           >
             <Save className="w-4 h-4 mr-2" />
-            {saving ? 'Saving...' : 'Save'}
+            {saveTestMutation.isLoading ? 'Saving...' : 'Save'}
           </button>
         </div>
       </div>

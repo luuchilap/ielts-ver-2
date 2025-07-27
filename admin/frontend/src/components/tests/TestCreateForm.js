@@ -63,7 +63,9 @@ const TestCreateForm = () => {
     // Prepare test data
     const testData = {
       ...data,
-      tags: data.tags.split(',').map(tag => tag.trim()).filter(Boolean),
+      tags: Array.isArray(data.tags)
+        ? data.tags.map(tag => tag.trim()).filter(Boolean)
+        : (data.tags || '').split(',').map(tag => tag.trim()).filter(Boolean),
       reading: selectedSkills.reading ? { sections: [], totalTime: 60 } : { sections: [], totalTime: 0 },
       listening: selectedSkills.listening ? { sections: [], totalTime: 40 } : { sections: [], totalTime: 0 },
       writing: selectedSkills.writing ? { tasks: [], totalTime: 60 } : { tasks: [], totalTime: 0 },

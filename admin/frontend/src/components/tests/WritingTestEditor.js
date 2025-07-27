@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
+import { useQuery, useMutation, useQueryClient } from 'react-query';
 import { 
   ArrowLeft, 
   Eye, 
@@ -11,6 +12,7 @@ import {
   Award
 } from 'lucide-react';
 import { toast } from 'react-hot-toast';
+import { testsAPI } from '../../services/api';
 import WritingTask1Editor from './writing/WritingTask1Editor';
 import WritingTask2Editor from './writing/WritingTask2Editor';
 import WritingPreview from './writing/WritingPreview';
@@ -18,6 +20,7 @@ import WritingPreview from './writing/WritingPreview';
 const WritingTestEditor = () => {
   const { testId } = useParams();
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   
   const [writingData, setWritingData] = useState({
     task1: {
@@ -58,13 +61,76 @@ const WritingTestEditor = () => {
 
   const [activeTask, setActiveTask] = useState('task1');
   const [showPreview, setShowPreview] = useState(false);
-  const [saving, setSaving] = useState(false);
+
+  // Load test data
+  const {
+    data: test,
+    isLoading: isLoadingTest,
+    error: testError,
+    refetch
+  } = useQuery(
+    ['test', testId],
+    () => testsAPI.getById(testId),
+    {
+      enabled: !!testId && testId !== 'new',
+      retry: 1,
+      refetchOnMount: true,
+      refetchOnWindowFocus: false,
+      onSuccess: (data) => {
+        const testData = data?.data?.data?.test;
+        if (testData?.writing?.tasks) {
+          const tasks = testData.writing.tasks;
+          setWritingData({
+            task1: tasks.find(t => t.id === 'task-1') || {
+              id: 'task-1', title: 'Task 1', timeLimit: 20, minWords: 150, type: 'academic', prompt: '', imageUrl: '', imageFile: null, chartType: '', sampleAnswer: '', rubric: { taskAchievement: '', coherenceCohesion: '', lexicalResource: '', grammaticalRange: '' }
+            },
+            task2: tasks.find(t => t.id === 'task-2') || {
+              id: 'task-2', title: 'Task 2', timeLimit: 40, minWords: 250, type: 'academic', prompt: '', essayType: '', sampleAnswer: '', rubric: { taskResponse: '', coherenceCohesion: '', lexicalResource: '', grammaticalRange: '' }
+            }
+          });
+        } else {
+          setWritingData({
+            task1: { id: 'task-1', title: 'Task 1', timeLimit: 20, minWords: 150, type: 'academic', prompt: '', imageUrl: '', imageFile: null, chartType: '', sampleAnswer: '', rubric: { taskAchievement: '', coherenceCohesion: '', lexicalResource: '', grammaticalRange: '' } },
+            task2: { id: 'task-2', title: 'Task 2', timeLimit: 40, minWords: 250, type: 'academic', prompt: '', essayType: '', sampleAnswer: '', rubric: { taskResponse: '', coherenceCohesion: '', lexicalResource: '', grammaticalRange: '' } }
+          });
+        }
+      }
+    }
+  );
+
+  // Reset state khi testId thay đổi (tránh giữ lại state cũ)
+  useEffect(() => {
+    setWritingData({
+      task1: { id: 'task-1', title: 'Task 1', timeLimit: 20, minWords: 150, type: 'academic', prompt: '', imageUrl: '', imageFile: null, chartType: '', sampleAnswer: '', rubric: { taskAchievement: '', coherenceCohesion: '', lexicalResource: '', grammaticalRange: '' } },
+      task2: { id: 'task-2', title: 'Task 2', timeLimit: 40, minWords: 250, type: 'academic', prompt: '', essayType: '', sampleAnswer: '', rubric: { taskResponse: '', coherenceCohesion: '', lexicalResource: '', grammaticalRange: '' } }
+    });
+    refetch(); // Luôn fetch lại dữ liệu khi mount
+    return () => {
+      setWritingData({
+        task1: { id: 'task-1', title: 'Task 1', timeLimit: 20, minWords: 150, type: 'academic', prompt: '', imageUrl: '', imageFile: null, chartType: '', sampleAnswer: '', rubric: { taskAchievement: '', coherenceCohesion: '', lexicalResource: '', grammaticalRange: '' } },
+        task2: { id: 'task-2', title: 'Task 2', timeLimit: 40, minWords: 250, type: 'academic', prompt: '', essayType: '', sampleAnswer: '', rubric: { taskResponse: '', coherenceCohesion: '', lexicalResource: '', grammaticalRange: '' } }
+      });
+    };
+  }, [testId]);
+
+  // Save test data mutation
+  const saveTestMutation = useMutation(
+    (data) => testsAPI.update(testId, data),
+    {
+      onSuccess: () => {
+        toast.success('Writing test saved successfully!');
+        queryClient.invalidateQueries(['test', testId]);
+        queryClient.invalidateQueries(['tests']);
+      },
+      onError: (error) => {
+        console.error('Save error:', error);
+        toast.error('Failed to save writing test');
+      }
+    }
+  );
 
   useEffect(() => {
-    // Load existing writing data if editing
-    if (testId && testId !== 'new') {
-      // TODO: Load from API
-    }
+    // No longer needed as data is loaded by useQuery
   }, [testId]);
 
   const handleBack = () => {
@@ -82,23 +148,22 @@ const WritingTestEditor = () => {
   };
 
   const handleSave = async () => {
-    setSaving(true);
-    try {
-      // Validate data
-      const errors = validateWritingData();
-      if (errors.length > 0) {
-        toast.error(`Please fix the following errors: ${errors.join(', ')}`);
-        return;
-      }
-
-      // API call to save writing test data
-      await new Promise(resolve => setTimeout(resolve, 1000)); // Simulate API call
-      toast.success('Writing test saved successfully!');
-    } catch (error) {
-      toast.error('Failed to save writing test');
-    } finally {
-      setSaving(false);
+    // Validate data
+    const errors = validateWritingData();
+    if (errors.length > 0) {
+      toast.error(`Please fix the following errors: ${errors.join(', ')}`);
+      return;
     }
+
+    // Prepare data for API
+    const updateData = {
+      writing: {
+        tasks: [writingData.task1, writingData.task2],
+        totalTime: writingData.task1.timeLimit + writingData.task2.timeLimit
+      }
+    };
+
+    saveTestMutation.mutate(updateData);
   };
 
   const validateWritingData = () => {
@@ -124,6 +189,52 @@ const WritingTestEditor = () => {
 
     return errors;
   };
+
+  // Show loading state
+  if (isLoadingTest || (testId !== 'new' && !test)) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="loading-spinner w-8 h-8"></div>
+      </div>
+    );
+  }
+
+  // Show error state
+  if (testError) {
+    return (
+      <div className="p-6">
+        <div className="text-center">
+          <h2 className="text-2xl font-bold text-red-600 mb-4">Error Loading Test</h2>
+          <p className="text-gray-600 mb-4">Failed to load test data. Please try again.</p>
+          <button
+            onClick={() => navigate('/tests')}
+            className="btn btn-primary"
+          >
+            Back to Tests
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  // Get current task with safety check
+  const currentTask = writingData[activeTask];
+  if (!currentTask) {
+    return (
+      <div className="p-6">
+        <div className="text-center">
+          <h2 className="text-2xl font-bold text-red-600 mb-4">Task Not Found</h2>
+          <p className="text-gray-600 mb-4">The selected task doesn't exist.</p>
+          <button
+            onClick={() => navigate('/tests')}
+            className="btn btn-primary"
+          >
+            Back to Tests
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   if (showPreview) {
     return (
@@ -159,11 +270,11 @@ const WritingTestEditor = () => {
           </button>
           <button
             onClick={handleSave}
-            disabled={saving}
+            disabled={saveTestMutation.isLoading}
             className="flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50"
           >
             <Save className="w-4 h-4 mr-2" />
-            {saving ? 'Saving...' : 'Save'}
+            {saveTestMutation.isLoading ? 'Saving...' : 'Save'}
           </button>
         </div>
       </div>

@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { DragDropContext, Droppable, Draggable } from 'react-beautiful-dnd';
+import { useQuery, useMutation, useQueryClient } from 'react-query';
 import { 
   Plus, 
   Trash2, 
@@ -12,16 +13,19 @@ import {
   ArrowLeft,
   Copy,
   Volume2,
-  Upload
+  Upload,
+  Layers
 } from 'lucide-react';
 import { toast } from 'react-hot-toast';
+import { testsAPI } from '../../services/api';
 import ListeningAudioManager from './listening/ListeningAudioManager';
-import QuestionEditor from './reading/QuestionEditor'; // Reuse from reading
+import QuestionGroup from './QuestionGroup';
 import ListeningPreview from './listening/ListeningPreview';
 
 const ListeningTestEditor = () => {
   const { testId } = useParams();
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   
   const [listeningData, setListeningData] = useState({
     sections: [
@@ -33,7 +37,7 @@ const ListeningTestEditor = () => {
         audioUrl: '',
         transcript: '',
         suggestedTime: 10,
-        questions: []
+        questionGroups: []
       },
       {
         id: 'section-2',
@@ -43,7 +47,7 @@ const ListeningTestEditor = () => {
         audioUrl: '',
         transcript: '',
         suggestedTime: 10,
-        questions: []
+        questionGroups: []
       },
       {
         id: 'section-3',
@@ -53,7 +57,7 @@ const ListeningTestEditor = () => {
         audioUrl: '',
         transcript: '',
         suggestedTime: 10,
-        questions: []
+        questionGroups: []
       },
       {
         id: 'section-4',
@@ -63,21 +67,121 @@ const ListeningTestEditor = () => {
         audioUrl: '',
         transcript: '',
         suggestedTime: 10,
-        questions: []
+        questionGroups: []
       }
     ]
   });
 
   const [activeSection, setActiveSection] = useState(0);
   const [showPreview, setShowPreview] = useState(false);
-  const [saving, setSaving] = useState(false);
 
-  useEffect(() => {
-    // Load existing listening data if editing
-    if (testId && testId !== 'new') {
-      // TODO: Load from API
+  // Load test data
+  const {
+    data: test,
+    isLoading: isLoadingTest,
+    error: testError,
+    refetch
+  } = useQuery(
+    ['test', testId],
+    () => testsAPI.getById(testId),
+    {
+      enabled: !!testId && testId !== 'new',
+      retry: 1,
+      refetchOnMount: true,
+      refetchOnWindowFocus: false,
+      onSuccess: (data) => {
+        const testData = data?.data?.data?.test;
+        console.log('Loading listening test data:', testData); // Debug log
+        
+        if (testData?.listening?.sections && testData.listening.sections.length > 0) {
+          // Load existing sections from database
+          const loadedSections = testData.listening.sections.map((section, index) => {
+            // Convert old question format to question groups if needed
+            let questionGroups = section.questionGroups || [];
+            
+            // If old format with direct questions, convert to groups
+            if (section.questions && section.questions.length > 0 && questionGroups.length === 0) {
+              questionGroups = [{
+                id: `group-${Date.now()}`,
+                title: 'Questions',
+                questionType: 'short-answer',
+                instructions: 'Answer the questions below.\nChoose NO MORE THAN THREE WORDS from what you hear for each answer.\nWrite your answers in boxes {range} on your answer sheet.',
+                questions: section.questions
+              }];
+            }
+            
+            return {
+              id: section.id || `section-${index + 1}`,
+              title: section.title || `Section ${index + 1}`,
+              description: section.description || '',
+              audioFile: null,
+              audioUrl: section.audioUrl || '',
+              transcript: section.transcript || '',
+              suggestedTime: section.suggestedTime || 10,
+              questionGroups: questionGroups
+            };
+          });
+          
+          console.log('Loaded listening sections:', loadedSections, 'Current activeSection:', activeSection); // Debug log
+          
+          setListeningData({
+            sections: loadedSections
+          });
+          
+          // Reset activeSection if it's out of bounds
+          if (activeSection >= loadedSections.length) {
+            console.log('Resetting listening activeSection from', activeSection, 'to 0'); // Debug log
+            setActiveSection(0);
+          }
+        } else {
+          // No sections in database, initialize with default sections
+          console.log('No listening sections found, initializing with defaults');
+          setListeningData({
+            sections: [
+              { id: 'section-1', title: 'Section 1', description: 'Conversation in an everyday social context', audioFile: null, audioUrl: '', transcript: '', suggestedTime: 10, questionGroups: [] },
+              { id: 'section-2', title: 'Section 2', description: 'Monologue in an everyday social context', audioFile: null, audioUrl: '', transcript: '', suggestedTime: 10, questionGroups: [] },
+              { id: 'section-3', title: 'Section 3', description: 'Conversation in an educational context', audioFile: null, audioUrl: '', transcript: '', suggestedTime: 10, questionGroups: [] },
+              { id: 'section-4', title: 'Section 4', description: 'Monologue in an academic context', audioFile: null, audioUrl: '', transcript: '', suggestedTime: 10, questionGroups: [] }
+            ]
+          });
+          setActiveSection(0);
+        }
+      }
     }
-  }, [testId]);
+  );
+
+  // Save test data mutation
+  const saveTestMutation = useMutation(
+    (data) => testsAPI.update(testId, data),
+    {
+      onSuccess: () => {
+        toast.success('Listening test saved successfully!');
+        queryClient.invalidateQueries(['test', testId]);
+        queryClient.invalidateQueries(['tests']);
+      },
+      onError: (error) => {
+        console.error('Save error:', error);
+        toast.error('Failed to save listening test');
+      }
+    }
+  );
+
+  // Reset state when testId changes
+  useEffect(() => {
+    setActiveSection(0); // Reset active section first
+    setListeningData({
+      sections: [
+        { id: 'section-1', title: 'Section 1', description: 'Conversation in an everyday social context', audioFile: null, audioUrl: '', transcript: '', suggestedTime: 10, questionGroups: [] },
+        { id: 'section-2', title: 'Section 2', description: 'Monologue in an everyday social context', audioFile: null, audioUrl: '', transcript: '', suggestedTime: 10, questionGroups: [] },
+        { id: 'section-3', title: 'Section 3', description: 'Conversation in an educational context', audioFile: null, audioUrl: '', transcript: '', suggestedTime: 10, questionGroups: [] },
+        { id: 'section-4', title: 'Section 4', description: 'Monologue in an academic context', audioFile: null, audioUrl: '', transcript: '', suggestedTime: 10, questionGroups: [] }
+      ]
+    });
+    // Only refetch if not a new test
+    if (testId !== 'new') {
+      refetch();
+    }
+  }, [testId, refetch]);
 
   const handleBack = () => {
     navigate('/tests');
@@ -92,147 +196,191 @@ const ListeningTestEditor = () => {
     }));
   };
 
-  const handleQuestionAdd = (sectionIndex, questionType) => {
-    const newQuestion = {
-      id: `question-${Date.now()}`,
-      type: questionType,
-      order: listeningData.sections[sectionIndex].questions.length + 1,
-      content: getDefaultQuestionContent(questionType)
+  const handleQuestionGroupAdd = (sectionIndex) => {
+    const newGroup = {
+      id: `group-${Date.now()}`,
+      title: '',
+      questionType: 'short-answer',
+      instructions: '',
+      questions: []
     };
 
+    const currentGroups = listeningData.sections[sectionIndex].questionGroups;
     handleSectionUpdate(sectionIndex, {
-      questions: [...listeningData.sections[sectionIndex].questions, newQuestion]
+      questionGroups: [...currentGroups, newGroup]
     });
   };
 
-  const handleQuestionUpdate = (sectionIndex, questionId, updates) => {
-    const updatedQuestions = listeningData.sections[sectionIndex].questions.map(q =>
-      q.id === questionId ? { ...q, ...updates } : q
+  const handleQuestionGroupUpdate = (sectionIndex, groupId, updates) => {
+    const updatedGroups = listeningData.sections[sectionIndex].questionGroups.map(group =>
+      group.id === groupId ? { ...group, ...updates } : group
     );
-    handleSectionUpdate(sectionIndex, { questions: updatedQuestions });
+    handleSectionUpdate(sectionIndex, { questionGroups: updatedGroups });
   };
 
-  const handleQuestionDelete = (sectionIndex, questionId) => {
-    const updatedQuestions = listeningData.sections[sectionIndex].questions.filter(q => q.id !== questionId);
-    handleSectionUpdate(sectionIndex, { questions: updatedQuestions });
+  const handleQuestionGroupDelete = (sectionIndex, groupId) => {
+    const updatedGroups = listeningData.sections[sectionIndex].questionGroups.filter(group => group.id !== groupId);
+    handleSectionUpdate(sectionIndex, { questionGroups: updatedGroups });
   };
 
-  const handleQuestionDuplicate = (sectionIndex, questionId) => {
-    const question = listeningData.sections[sectionIndex].questions.find(q => q.id === questionId);
-    const duplicatedQuestion = {
-      ...question,
-      id: `question-${Date.now()}`,
-      order: listeningData.sections[sectionIndex].questions.length + 1
-    };
-    
-    handleSectionUpdate(sectionIndex, {
-      questions: [...listeningData.sections[sectionIndex].questions, duplicatedQuestion]
-    });
-  };
-
-  const handleQuestionReorder = (sectionIndex, result) => {
+  const handleQuestionGroupReorder = (sectionIndex, result) => {
     if (!result.destination) return;
 
-    const questions = Array.from(listeningData.sections[sectionIndex].questions);
-    const [reorderedItem] = questions.splice(result.source.index, 1);
-    questions.splice(result.destination.index, 0, reorderedItem);
+    const groups = Array.from(listeningData.sections[sectionIndex].questionGroups);
+    const [reorderedItem] = groups.splice(result.source.index, 1);
+    groups.splice(result.destination.index, 0, reorderedItem);
 
-    // Update order numbers
-    const updatedQuestions = questions.map((q, index) => ({
-      ...q,
-      order: index + 1
-    }));
-
-    handleSectionUpdate(sectionIndex, { questions: updatedQuestions });
+    handleSectionUpdate(sectionIndex, { questionGroups: groups });
   };
 
   const handleSave = async () => {
-    setSaving(true);
-    try {
-      // API call to save listening test data
-      await new Promise(resolve => setTimeout(resolve, 1000)); // Simulate API call
-      toast.success('Listening test saved successfully!');
-    } catch (error) {
-      toast.error('Failed to save listening test');
-    } finally {
-      setSaving(false);
+    // Validate data
+    const errors = validateListeningData();
+    if (errors.length > 0) {
+      toast.error(`Please fix the following errors: ${errors.join(', ')}`);
+      return;
     }
-  };
 
-  const getDefaultQuestionContent = (type) => {
-    // Reuse the same defaults from reading, as most question types are identical
-    const defaults = {
-      'multiple-choice-single': {
-        question: '',
-        options: ['', '', '', ''],
-        correctAnswer: 0,
-        explanation: ''
-      },
-      'multiple-choice-multiple': {
-        question: '',
-        options: ['', '', '', '', ''],
-        correctAnswers: [],
-        requiredAnswers: 2,
-        explanation: ''
-      },
-      'true-false-not-given': {
-        statement: '',
-        answer: 'true',
-        explanation: ''
-      },
-      'fill-in-blanks': {
-        sentence: '',
-        blanks: [''],
-        maxWords: 1,
-        explanation: ''
-      },
-      'summary-completion': {
-        summary: '',
-        wordBank: [],
-        useWordBank: true,
-        maxWords: 2,
-        explanation: ''
-      },
-      'sentence-completion': {
-        beginning: '',
-        completion: '',
-        maxWords: 3,
-        explanation: ''
-      },
-      'short-answer': {
-        question: '',
-        answer: '',
-        maxWords: 3,
-        explanation: ''
-      },
-      // Listening-specific question types
-      'note-completion': {
-        notes: '',
-        blanks: [''],
-        maxWords: 2,
-        explanation: ''
-      },
-      'form-completion': {
-        formFields: [
-          { label: '', answer: '', type: 'text' }
-        ],
-        explanation: ''
+    // Prepare data for API - convert questionGroups back to questions for backend compatibility
+    const sectionsForSave = listeningData.sections.map(section => {
+      // Flatten all questions from all groups
+      const allQuestions = [];
+      let questionNumber = 1;
+      
+      section.questionGroups.forEach(group => {
+        group.questions.forEach(question => {
+          allQuestions.push({
+            ...question,
+            order: questionNumber++,
+            groupId: group.id,
+            groupType: group.questionType,
+            groupInstructions: group.instructions
+          });
+        });
+      });
+
+      return {
+        ...section,
+        questions: allQuestions,
+        questionGroups: section.questionGroups // Keep groups for future use
+      };
+    });
+
+    const updateData = {
+      listening: {
+        sections: sectionsForSave,
+        totalTime: listeningData.sections.reduce((total, section) => total + section.suggestedTime, 0)
       }
     };
-    return defaults[type] || {};
+
+    saveTestMutation.mutate(updateData);
   };
 
-  // Question types suitable for listening (reusing most from reading)
-  const questionTypes = [
-    { value: 'multiple-choice-single', label: 'Multiple Choice (Single)', icon: '○' },
-    { value: 'multiple-choice-multiple', label: 'Multiple Choice (Multiple)', icon: '☑' },
-    { value: 'fill-in-blanks', label: 'Fill in the Blanks', icon: '___' },
-    { value: 'short-answer', label: 'Short Answer Questions', icon: '?' },
-    { value: 'summary-completion', label: 'Summary Completion', icon: '📝' },
-    { value: 'sentence-completion', label: 'Sentence Completion', icon: '→' },
-    { value: 'note-completion', label: 'Note Completion', icon: '📋' },
-    { value: 'form-completion', label: 'Form Completion', icon: '📄' }
-  ];
+  const validateListeningData = () => {
+    const errors = [];
+    
+    listeningData.sections.forEach((section, index) => {
+      if (!section.audioUrl && !section.audioFile) {
+        errors.push(`Section ${index + 1} audio is required`);
+      }
+      if (section.questionGroups.length === 0) {
+        errors.push(`Section ${index + 1} must have at least one question group`);
+      }
+      
+      section.questionGroups.forEach((group, gIndex) => {
+        if (group.questions.length === 0) {
+          errors.push(`Section ${index + 1}, Group ${gIndex + 1}: Must have at least one question`);
+        }
+        
+        group.questions.forEach((question, qIndex) => {
+          if (!question.content?.statement?.trim()) {
+            errors.push(`Section ${index + 1}, Group ${gIndex + 1}, Question ${qIndex + 1}: Statement is required`);
+          }
+          // Different validation based on question type
+          if (question.type === 'multiple-choice') {
+            if (!question.content?.correctAnswer) {
+              errors.push(`Section ${index + 1}, Group ${gIndex + 1}, Question ${qIndex + 1}: Correct answer is required`);
+            }
+          } else {
+            if (!question.content?.answer?.trim()) {
+              errors.push(`Section ${index + 1}, Group ${gIndex + 1}, Question ${qIndex + 1}: Answer is required`);
+            }
+          }
+        });
+      });
+    });
+
+    return errors;
+  };
+
+  const getTotalQuestions = (sectionIndex) => {
+    return listeningData.sections[sectionIndex].questionGroups.reduce(
+      (total, group) => total + group.questions.length, 0
+    );
+  };
+
+  const getQuestionStartNumber = (sectionIndex, groupIndex) => {
+    let startNumber = 1;
+    for (let i = 0; i < groupIndex; i++) {
+      startNumber += listeningData.sections[sectionIndex].questionGroups[i].questions.length;
+    }
+    return startNumber;
+  };
+
+  // Show loading state
+  if (isLoadingTest || (testId !== 'new' && !test)) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="loading-spinner w-8 h-8"></div>
+      </div>
+    );
+  }
+
+  // Show loading while sections are being initialized for existing tests
+  if (testId !== 'new' && test && listeningData.sections.length === 0) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="loading-spinner w-8 h-8"></div>
+      </div>
+    );
+  }
+
+  // Show error state
+  if (testError) {
+    return (
+      <div className="p-6">
+        <div className="text-center">
+          <h2 className="text-2xl font-bold text-red-600 mb-4">Error Loading Test</h2>
+          <p className="text-gray-600 mb-4">Failed to load test data. Please try again.</p>
+          <button
+            onClick={() => navigate('/tests')}
+            className="btn btn-primary"
+          >
+            Back to Tests
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  // Get current section with safety check
+  const currentSection = listeningData.sections[activeSection];
+  if (!currentSection) {
+    return (
+      <div className="p-6">
+        <div className="text-center">
+          <h2 className="text-2xl font-bold text-red-600 mb-4">Section Not Found</h2>
+          <p className="text-gray-600 mb-4">The selected section doesn't exist.</p>
+          <button
+            onClick={() => navigate('/tests')}
+            className="btn btn-primary"
+          >
+            Back to Tests
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   if (showPreview) {
     return (
@@ -268,11 +416,11 @@ const ListeningTestEditor = () => {
           </button>
           <button
             onClick={handleSave}
-            disabled={saving}
+            disabled={saveTestMutation.isLoading}
             className="flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50"
           >
             <Save className="w-4 h-4 mr-2" />
-            {saving ? 'Saving...' : 'Save'}
+            {saveTestMutation.isLoading ? 'Saving...' : 'Save'}
           </button>
         </div>
       </div>
@@ -307,7 +455,7 @@ const ListeningTestEditor = () => {
                     {section.description}
                   </div>
                   <div className="text-xs text-gray-500 mt-1">
-                    {section.questions.length} questions
+                    {getTotalQuestions(index)} questions • {section.questionGroups.length} groups
                   </div>
                 </button>
               ))}
@@ -352,76 +500,45 @@ const ListeningTestEditor = () => {
               />
             </div>
 
-            {/* Questions Section */}
+            {/* Question Groups Section */}
             <div className="p-6">
-              <div className="flex items-center justify-between mb-4">
-                <h3 className="text-lg font-semibold text-gray-900">Questions</h3>
-                <div className="flex items-center space-x-2">
-                  <select
-                    onChange={(e) => {
-                      if (e.target.value) {
-                        handleQuestionAdd(activeSection, e.target.value);
-                        e.target.value = '';
-                      }
-                    }}
-                    className="px-3 py-2 border border-gray-300 rounded-lg text-sm"
-                    defaultValue=""
-                  >
-                    <option value="">Add Question Type</option>
-                    {questionTypes.map(type => (
-                      <option key={type.value} value={type.value}>
-                        {type.icon} {type.label}
-                      </option>
-                    ))}
-                  </select>
+              <div className="flex items-center justify-between mb-6">
+                <div>
+                  <h3 className="text-lg font-semibold text-gray-900">Question Groups</h3>
+                  <p className="text-sm text-gray-500 mt-1">
+                    Organize questions by type with specific instructions for each group
+                  </p>
                 </div>
+                <button
+                  onClick={() => handleQuestionGroupAdd(activeSection)}
+                  className="flex items-center px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700"
+                >
+                  <Plus className="w-4 h-4 mr-2" />
+                  Add Question Group
+                </button>
               </div>
 
-              {/* Questions List */}
-              <DragDropContext onDragEnd={(result) => handleQuestionReorder(activeSection, result)}>
-                <Droppable droppableId="questions">
+              {/* Question Groups List */}
+              <DragDropContext onDragEnd={(result) => handleQuestionGroupReorder(activeSection, result)}>
+                <Droppable droppableId="question-groups">
                   {(provided) => (
                     <div {...provided.droppableProps} ref={provided.innerRef} className="space-y-4">
-                      {listeningData.sections[activeSection].questions.map((question, index) => (
-                        <Draggable key={question.id} draggableId={question.id} index={index}>
+                      {listeningData.sections[activeSection].questionGroups.map((group, groupIndex) => (
+                        <Draggable key={group.id} draggableId={group.id} index={groupIndex}>
                           {(provided) => (
                             <div
                               ref={provided.innerRef}
                               {...provided.draggableProps}
-                              className="border border-gray-200 rounded-lg p-4"
                             >
-                              <div className="flex items-center justify-between mb-3">
-                                <div className="flex items-center space-x-3">
-                                  <div {...provided.dragHandleProps}>
-                                    <Move className="w-4 h-4 text-gray-400 cursor-move" />
-                                  </div>
-                                  <span className="font-medium text-gray-900">
-                                    Question {question.order}
-                                  </span>
-                                  <span className="text-sm text-gray-500 bg-gray-100 px-2 py-1 rounded">
-                                    {questionTypes.find(t => t.value === question.type)?.label}
-                                  </span>
-                                </div>
-                                <div className="flex items-center space-x-2">
-                                  <button
-                                    onClick={() => handleQuestionDuplicate(activeSection, question.id)}
-                                    className="p-1 text-gray-400 hover:text-gray-600"
-                                  >
-                                    <Copy className="w-4 h-4" />
-                                  </button>
-                                  <button
-                                    onClick={() => handleQuestionDelete(activeSection, question.id)}
-                                    className="p-1 text-red-400 hover:text-red-600"
-                                  >
-                                    <Trash2 className="w-4 h-4" />
-                                  </button>
-                                </div>
+                              <div className="flex items-center mb-2" {...provided.dragHandleProps}>
+                                <Move className="w-4 h-4 text-gray-400 cursor-move mr-2" />
+                                <span className="text-sm text-gray-500">Drag to reorder groups</span>
                               </div>
-                              
-                              {/* Reuse QuestionEditor from reading */}
-                              <QuestionEditor
-                                question={question}
-                                onChange={(updates) => handleQuestionUpdate(activeSection, question.id, updates)}
+                              <QuestionGroup
+                                group={group}
+                                onUpdate={(updates) => handleQuestionGroupUpdate(activeSection, group.id, updates)}
+                                onDelete={() => handleQuestionGroupDelete(activeSection, group.id)}
+                                questionStartNumber={getQuestionStartNumber(activeSection, groupIndex)}
                               />
                             </div>
                           )}
@@ -433,11 +550,14 @@ const ListeningTestEditor = () => {
                 </Droppable>
               </DragDropContext>
 
-              {listeningData.sections[activeSection].questions.length === 0 && (
-                <div className="text-center py-12 text-gray-500">
-                  <Volume2 className="w-12 h-12 mx-auto mb-4 text-gray-300" />
-                  <p>No questions added yet</p>
-                  <p className="text-sm">Upload audio first, then add questions using the dropdown above</p>
+              {listeningData.sections[activeSection].questionGroups.length === 0 && (
+                <div className="text-center py-12 text-gray-500 border-2 border-dashed border-gray-200 rounded-lg">
+                  <Layers className="w-12 h-12 mx-auto mb-4 text-gray-300" />
+                  <p className="font-medium">No question groups yet</p>
+                  <p className="text-sm mt-1">Upload audio first, then create question groups</p>
+                  <p className="text-sm text-gray-400 mt-2">
+                    Example: Multiple Choice (1-4), Form Completion (5-10)
+                  </p>
                 </div>
               )}
             </div>
