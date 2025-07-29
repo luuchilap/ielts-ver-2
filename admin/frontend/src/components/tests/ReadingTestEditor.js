@@ -72,9 +72,15 @@ const ReadingTestEditor = () => {
         const testData = data?.data?.data?.test;
         console.log('Loading test data:', testData); // Debug log
         
-        if (testData?.reading?.sections && testData.reading.sections.length > 0) {
+        // Try to load from flat structure first, then fallback to legacy structure
+        let sectionsData = testData?.readingSections;
+        if (!sectionsData || sectionsData.length === 0) {
+          sectionsData = testData?.reading?.sections;
+        }
+        
+        if (sectionsData && sectionsData.length > 0) {
           // Load existing sections from database
-          const loadedSections = testData.reading.sections.map((section, index) => {
+          const loadedSections = sectionsData.map((section, index) => {
             // Convert old question format to question groups if needed
             let questionGroups = section.questionGroups || [];
             
@@ -241,6 +247,9 @@ const ReadingTestEditor = () => {
     });
 
     const updateData = {
+      // Flat structure (primary)
+      readingSections: sectionsForSave,
+      // Legacy structure (backward compatibility)
       reading: {
         sections: sectionsForSave,
         totalTime: readingData.sections.reduce((total, section) => total + section.suggestedTime, 0)

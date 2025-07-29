@@ -78,13 +78,19 @@ const WritingTestEditor = () => {
       refetchOnWindowFocus: false,
       onSuccess: (data) => {
         const testData = data?.data?.data?.test;
-        if (testData?.writing?.tasks) {
-          const tasks = testData.writing.tasks;
+        
+        // Try to load from flat structure first, then fallback to legacy structure
+        let tasksData = testData?.writingTasks;
+        if (!tasksData || tasksData.length === 0) {
+          tasksData = testData?.writing?.tasks;
+        }
+        
+        if (tasksData) {
           setWritingData({
-            task1: tasks.find(t => t.id === 'task-1') || {
+            task1: tasksData.find(t => t.id === 'task-1') || {
               id: 'task-1', title: 'Task 1', timeLimit: 20, minWords: 150, type: 'academic', prompt: '', imageUrl: '', imageFile: null, chartType: '', sampleAnswer: '', rubric: { taskAchievement: '', coherenceCohesion: '', lexicalResource: '', grammaticalRange: '' }
             },
-            task2: tasks.find(t => t.id === 'task-2') || {
+            task2: tasksData.find(t => t.id === 'task-2') || {
               id: 'task-2', title: 'Task 2', timeLimit: 40, minWords: 250, type: 'academic', prompt: '', essayType: '', sampleAnswer: '', rubric: { taskResponse: '', coherenceCohesion: '', lexicalResource: '', grammaticalRange: '' }
             }
           });
@@ -156,9 +162,13 @@ const WritingTestEditor = () => {
     }
 
     // Prepare data for API
+    const tasks = [writingData.task1, writingData.task2];
     const updateData = {
+      // Flat structure (primary)
+      writingTasks: tasks,
+      // Legacy structure (backward compatibility)
       writing: {
-        tasks: [writingData.task1, writingData.task2],
+        tasks: tasks,
         totalTime: writingData.task1.timeLimit + writingData.task2.timeLimit
       }
     };

@@ -51,9 +51,9 @@ const targetScores = [
 
 const levels = [
   { value: '', label: 'Select your level' },
-  { value: 'Beginner', label: 'Beginner' },
-  { value: 'Intermediate', label: 'Intermediate' },
-  { value: 'Advanced', label: 'Advanced' },
+  { value: 'beginner', label: 'Beginner' },
+  { value: 'intermediate', label: 'Intermediate' },
+  { value: 'advanced', label: 'Advanced' },
 ];
 
 const RegisterPage: React.FC = () => {
@@ -144,7 +144,7 @@ const RegisterPage: React.FC = () => {
         password: formData.password,
         country: formData.country || undefined,
         targetScore: formData.targetScore ? parseFloat(formData.targetScore) : undefined,
-        level: formData.level ? (formData.level as 'Beginner' | 'Intermediate' | 'Advanced') : undefined,
+        level: formData.level ? (formData.level as 'beginner' | 'intermediate' | 'advanced') : undefined,
       });
       
       toast.success('Account created successfully! Please check your email to verify your account.');

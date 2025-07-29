@@ -9,7 +9,7 @@ export interface User {
   phone?: string;
   country?: string;
   targetScore?: number;
-  level?: 'Beginner' | 'Intermediate' | 'Advanced';
+  level?: 'beginner' | 'intermediate' | 'advanced';
   createdAt: string;
   updatedAt: string;
 }
@@ -28,41 +28,92 @@ export interface RegisterData {
   lastName: string;
   country?: string;
   targetScore?: number;
-  level?: 'Beginner' | 'Intermediate' | 'Advanced';
+  level?: 'beginner' | 'intermediate' | 'advanced';
 }
 
-// Test types
+// Test types - Unified for both admin and client
 export interface Test {
   _id: string;
   title: string;
   description: string;
-  difficulty: 'Beginner' | 'Intermediate' | 'Advanced';
+  difficulty: 'beginner' | 'intermediate' | 'advanced';
   duration: number; // in minutes
   totalQuestions: number;
   skills: ('Reading' | 'Listening' | 'Writing' | 'Speaking')[];
-  status: 'active' | 'draft' | 'archived';
+  status: 'draft' | 'published' | 'archived' | 'active';
+  isPublic: boolean;
+  isFeatured: boolean;
+  isTemplate: boolean;
+  tags: string[];
+  category: 'Academic' | 'General Training' | 'Practice' | 'Mock Test';
+  
+  // Flat structure (preferred)
   readingSections?: ReadingSection[];
   listeningSections?: ListeningSection[];
   writingTasks?: WritingTask[];
   speakingParts?: SpeakingPart[];
+  
+  // Legacy nested structure (for backward compatibility)
+  reading?: {
+    sections: ReadingSection[];
+    totalTime: number;
+  };
+  listening?: {
+    sections: ListeningSection[];
+    totalTime: number;
+  };
+  writing?: {
+    tasks: WritingTask[];
+    totalTime: number;
+  };
+  speaking?: {
+    parts: SpeakingPart[];
+    totalTime: number;
+  };
+  
+  // Statistics
+  statistics: {
+    totalAttempts: number;
+    averageScore: number;
+    averageCompletionTime: number;
+    completionRate: number;
+  };
+  
+  // Settings
+  settings: {
+    allowReview: boolean;
+    showCorrectAnswers: boolean;
+    allowPause: boolean;
+    shuffleQuestions: boolean;
+    timePerQuestion?: number;
+    passingScore: number;
+  };
+  
+  // Metadata
+  createdBy: string;
+  lastModifiedBy?: string;
   createdAt: string;
   updatedAt: string;
 }
 
 // Reading types
 export interface ReadingSection {
-  _id: string;
+  id: string; // Custom string ID
   title: string;
   passage: string;
   suggestedTime: number;
+  order: number;
   questions: ReadingQuestion[];
 }
 
 export interface ReadingQuestion {
-  _id: string;
+  id: string; // Custom string ID
   type: ReadingQuestionType;
   order: number;
   content: any; // Will be typed based on question type
+  points?: number;
+  timeLimit?: number;
+  difficulty?: 'Easy' | 'Medium' | 'Hard';
 }
 
 export type ReadingQuestionType = 
@@ -104,28 +155,73 @@ export interface FillInBlanks {
   explanation?: string;
 }
 
+export interface MatchingHeadings {
+  headings: string[];
+  paragraphs: string[];
+  correctMatching: Array<{
+    paragraphIndex: number;
+    headingIndex: number;
+  }>;
+  explanation?: string;
+}
+
+export interface MatchingInformation {
+  statements: string[];
+  paragraphs: string[];
+  correctMatching: Array<{
+    statementIndex: number;
+    paragraphIndex: number;
+  }>;
+  explanation?: string;
+}
+
+export interface SummaryCompletion {
+  summary: string;
+  gaps: Array<{
+    position: number;
+    correctAnswers: string[];
+    maxWords: number;
+  }>;
+  explanation?: string;
+}
+
+export interface SentenceCompletion {
+  sentences: Array<{
+    sentence: string;
+    gap: string;
+    correctAnswers: string[];
+    maxWords: number;
+  }>;
+  explanation?: string;
+}
+
 // Listening types
 export interface ListeningSection {
-  _id: string;
+  id: string; // Custom string ID
   title: string;
   audioUrl: string;
   transcript?: string;
   suggestedTime: number;
+  order: number;
   questions: ListeningQuestion[];
 }
 
 export interface ListeningQuestion {
-  _id: string;
+  id: string; // Custom string ID
   type: ReadingQuestionType; // Similar question types
   order: number;
   content: any;
   timestamp?: number; // Audio timestamp in seconds
+  points?: number;
+  timeLimit?: number;
+  difficulty?: 'Easy' | 'Medium' | 'Hard';
 }
 
 // Writing types
 export interface WritingTask {
-  _id: string;
+  id: string; // Custom string ID
   taskNumber: 1 | 2;
+  title: string;
   prompt: string;
   imageUrl?: string;
   requirements: string;
@@ -134,6 +230,7 @@ export interface WritingTask {
     min: number;
     max?: number;
   };
+  sampleAnswer?: string;
   criteria: WritingCriteria[];
 }
 
@@ -145,7 +242,7 @@ export interface WritingCriteria {
 
 // Speaking types
 export interface SpeakingPart {
-  _id: string;
+  id: string; // Custom string ID
   partNumber: 1 | 2 | 3;
   title: string;
   instructions: string;
@@ -155,7 +252,7 @@ export interface SpeakingPart {
 }
 
 export interface SpeakingQuestion {
-  _id: string;
+  id: string; // Custom string ID
   question: string;
   audioUrl?: string;
   cueCard?: string; // For Part 2

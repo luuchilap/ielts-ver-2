@@ -46,12 +46,41 @@ exports.getTests = async (req, res) => {
     sort[sortBy] = sortOrder === 'desc' ? -1 : 1;
 
     // Execute query with pagination
-    const tests = await Test.find(filter)
+    const testsData = await Test.find(filter)
       .sort(sort)
       .limit(limit * 1)
       .skip((page - 1) * limit)
-      .select('-readingSections.passage -listeningSections.transcript -writingTasks.prompt -speakingParts.questions')
       .lean();
+
+    // Process tests to ensure unified structure and remove sensitive data
+    const tests = testsData.map(test => {
+      // Create a Test object to use the getUnifiedData method
+      const testObj = new Test(test);
+      const unifiedTest = testObj.getUnifiedData();
+      
+      // Remove sensitive content for list view
+      return {
+        ...unifiedTest,
+        readingSections: unifiedTest.readingSections?.map(section => ({
+          ...section,
+          passage: undefined, // Remove passage content
+          questions: section.questions?.map(q => ({ ...q, content: undefined }))
+        })),
+        listeningSections: unifiedTest.listeningSections?.map(section => ({
+          ...section,
+          transcript: undefined, // Remove transcript
+          questions: section.questions?.map(q => ({ ...q, content: undefined }))
+        })),
+        writingTasks: unifiedTest.writingTasks?.map(task => ({
+          ...task,
+          prompt: undefined // Remove prompt
+        })),
+        speakingParts: unifiedTest.speakingParts?.map(part => ({
+          ...part,
+          questions: undefined // Remove questions
+        }))
+      };
+    });
 
     // Get total count for pagination
     const total = await Test.countDocuments(filter);
@@ -83,9 +112,28 @@ exports.getFeaturedTests = async (req, res) => {
   try {
     const limit = parseInt(req.query.limit) || 6;
 
-    const tests = await Test.findFeatured(limit)
-      .select('-readingSections.passage -listeningSections.transcript')
+    const testsData = await Test.findFeatured(limit)
       .lean();
+
+    // Process tests to ensure unified structure and remove sensitive data
+    const tests = testsData.map(test => {
+      // Create a Test object to use the getUnifiedData method
+      const testObj = new Test(test);
+      const unifiedTest = testObj.getUnifiedData();
+      
+      // Remove sensitive content for list view
+      return {
+        ...unifiedTest,
+        readingSections: unifiedTest.readingSections?.map(section => ({
+          ...section,
+          passage: undefined // Remove passage content
+        })),
+        listeningSections: unifiedTest.listeningSections?.map(section => ({
+          ...section,
+          transcript: undefined // Remove transcript
+        }))
+      };
+    });
 
     res.json({
       success: true,
@@ -108,9 +156,28 @@ exports.getPopularTests = async (req, res) => {
   try {
     const limit = parseInt(req.query.limit) || 6;
 
-    const tests = await Test.findPopular(limit)
-      .select('-readingSections.passage -listeningSections.transcript')
+    const testsData = await Test.findPopular(limit)
       .lean();
+
+    // Process tests to ensure unified structure and remove sensitive data
+    const tests = testsData.map(test => {
+      // Create a Test object to use the getUnifiedData method
+      const testObj = new Test(test);
+      const unifiedTest = testObj.getUnifiedData();
+      
+      // Remove sensitive content for list view
+      return {
+        ...unifiedTest,
+        readingSections: unifiedTest.readingSections?.map(section => ({
+          ...section,
+          passage: undefined // Remove passage content
+        })),
+        listeningSections: unifiedTest.listeningSections?.map(section => ({
+          ...section,
+          transcript: undefined // Remove transcript
+        }))
+      };
+    });
 
     res.json({
       success: true,
@@ -191,13 +258,17 @@ exports.getTestById = async (req, res) => {
       });
     }
 
+    // Get unified test data (converts legacy structure to flat structure if needed)
+    const unifiedTest = test.getUnifiedData();
+
     // Don't expose correct answers to non-authenticated users
     const sanitizedTest = {
-      ...test.toJSON(),
-      readingSections: test.readingSections?.map(section => ({
-        ...section.toJSON(),
-        questions: section.questions.map(question => ({
+      ...unifiedTest,
+      readingSections: unifiedTest.readingSections?.map(section => ({
+        ...section,
+        questions: section.questions?.map(question => ({
           _id: question._id,
+          id: question.id,
           type: question.type,
           order: question.order,
           content: {
@@ -208,10 +279,11 @@ exports.getTestById = async (req, res) => {
           }
         }))
       })),
-      listeningSections: test.listeningSections?.map(section => ({
-        ...section.toJSON(),
-        questions: section.questions.map(question => ({
+      listeningSections: unifiedTest.listeningSections?.map(section => ({
+        ...section,
+        questions: section.questions?.map(question => ({
           _id: question._id,
+          id: question.id,
           type: question.type,
           order: question.order,
           timestamp: question.timestamp,

@@ -180,18 +180,48 @@ const createTest = async (req, res) => {
       lastModifiedBy: req.user._id
     };
 
-    // Ensure all IDs are strings
+    // Convert legacy nested structure to flat structure and ensure all IDs are strings
     if (testData.reading) {
       testData.reading = ensureStringIds(testData.reading);
+      // Map to flat structure
+      if (testData.reading.sections) {
+        testData.readingSections = testData.reading.sections;
+      }
     }
     if (testData.listening) {
       testData.listening = ensureStringIds(testData.listening);
+      // Map to flat structure
+      if (testData.listening.sections) {
+        testData.listeningSections = testData.listening.sections;
+      }
     }
     if (testData.writing) {
       testData.writing = ensureStringIds(testData.writing);
+      // Map to flat structure
+      if (testData.writing.tasks) {
+        testData.writingTasks = testData.writing.tasks;
+      }
     }
     if (testData.speaking) {
       testData.speaking = ensureStringIds(testData.speaking);
+      // Map to flat structure
+      if (testData.speaking.parts) {
+        testData.speakingParts = testData.speaking.parts;
+      }
+    }
+
+    // Also handle direct flat structure
+    if (testData.readingSections) {
+      testData.readingSections = ensureStringIds({ sections: testData.readingSections }).sections;
+    }
+    if (testData.listeningSections) {
+      testData.listeningSections = ensureStringIds({ sections: testData.listeningSections }).sections;
+    }
+    if (testData.writingTasks) {
+      testData.writingTasks = ensureStringIds({ tasks: testData.writingTasks }).tasks;
+    }
+    if (testData.speakingParts) {
+      testData.speakingParts = ensureStringIds({ parts: testData.speakingParts }).parts;
     }
 
     const test = new Test(testData);
@@ -235,18 +265,48 @@ const updateTest = async (req, res) => {
       lastModifiedBy: req.user._id
     };
 
-    // Ensure all IDs are strings
+    // Convert legacy nested structure to flat structure and ensure all IDs are strings
     if (updateData.reading) {
       updateData.reading = ensureStringIds(updateData.reading);
+      // Map to flat structure
+      if (updateData.reading.sections) {
+        updateData.readingSections = updateData.reading.sections;
+      }
     }
     if (updateData.listening) {
       updateData.listening = ensureStringIds(updateData.listening);
+      // Map to flat structure
+      if (updateData.listening.sections) {
+        updateData.listeningSections = updateData.listening.sections;
+      }
     }
     if (updateData.writing) {
       updateData.writing = ensureStringIds(updateData.writing);
+      // Map to flat structure
+      if (updateData.writing.tasks) {
+        updateData.writingTasks = updateData.writing.tasks;
+      }
     }
     if (updateData.speaking) {
       updateData.speaking = ensureStringIds(updateData.speaking);
+      // Map to flat structure
+      if (updateData.speaking.parts) {
+        updateData.speakingParts = updateData.speaking.parts;
+      }
+    }
+
+    // Also handle direct flat structure
+    if (updateData.readingSections) {
+      updateData.readingSections = ensureStringIds({ sections: updateData.readingSections }).sections;
+    }
+    if (updateData.listeningSections) {
+      updateData.listeningSections = ensureStringIds({ sections: updateData.listeningSections }).sections;
+    }
+    if (updateData.writingTasks) {
+      updateData.writingTasks = ensureStringIds({ tasks: updateData.writingTasks }).tasks;
+    }
+    if (updateData.speakingParts) {
+      updateData.speakingParts = ensureStringIds({ parts: updateData.speakingParts }).parts;
     }
 
     const test = await Test.findByIdAndUpdate(

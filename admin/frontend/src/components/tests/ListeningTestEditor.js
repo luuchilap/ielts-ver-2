@@ -93,9 +93,15 @@ const ListeningTestEditor = () => {
         const testData = data?.data?.data?.test;
         console.log('Loading listening test data:', testData); // Debug log
         
-        if (testData?.listening?.sections && testData.listening.sections.length > 0) {
+        // Try to load from flat structure first, then fallback to legacy structure
+        let sectionsData = testData?.listeningSections;
+        if (!sectionsData || sectionsData.length === 0) {
+          sectionsData = testData?.listening?.sections;
+        }
+        
+        if (sectionsData && sectionsData.length > 0) {
           // Load existing sections from database
-          const loadedSections = testData.listening.sections.map((section, index) => {
+          const loadedSections = sectionsData.map((section, index) => {
             // Convert old question format to question groups if needed
             let questionGroups = section.questionGroups || [];
             
@@ -267,6 +273,9 @@ const ListeningTestEditor = () => {
     });
 
     const updateData = {
+      // Flat structure (primary)
+      listeningSections: sectionsForSave,
+      // Legacy structure (backward compatibility)
       listening: {
         sections: sectionsForSave,
         totalTime: listeningData.sections.reduce((total, section) => total + section.suggestedTime, 0)

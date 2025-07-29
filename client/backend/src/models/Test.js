@@ -49,6 +49,39 @@ const questionSchemas = {
     explanation: String
   },
   
+  // Matching information
+  matchingInformation: {
+    statements: [{ type: String, required: true }],
+    paragraphs: [{ type: String, required: true }],
+    correctMatching: [{
+      statementIndex: Number,
+      paragraphIndex: Number
+    }],
+    explanation: String
+  },
+  
+  // Summary completion
+  summaryCompletion: {
+    summary: { type: String, required: true },
+    gaps: [{
+      position: Number,
+      correctAnswers: [{ type: String, required: true }],
+      maxWords: { type: Number, default: 1 }
+    }],
+    explanation: String
+  },
+  
+  // Sentence completion
+  sentenceCompletion: {
+    sentences: [{
+      sentence: { type: String, required: true },
+      gap: { type: String, required: true },
+      correctAnswers: [{ type: String, required: true }],
+      maxWords: { type: Number, default: 1 }
+    }],
+    explanation: String
+  },
+  
   // Short answer
   shortAnswer: {
     question: { type: String, required: true },
@@ -60,6 +93,7 @@ const questionSchemas = {
 
 // Base question schema
 const questionSchema = new mongoose.Schema({
+  id: { type: String, required: true }, // Custom string ID for compatibility
   type: {
     type: String,
     required: true,
@@ -94,11 +128,12 @@ const questionSchema = new mongoose.Schema({
     default: 'Medium'
   }
 }, {
-  _id: true
+  _id: false // Disable automatic ObjectId for compatibility with admin
 });
 
 // Reading section schema
 const readingSectionSchema = new mongoose.Schema({
+  id: { type: String, required: true }, // Custom string ID
   title: {
     type: String,
     required: true
@@ -117,11 +152,12 @@ const readingSectionSchema = new mongoose.Schema({
   },
   questions: [questionSchema]
 }, {
-  _id: true
+  _id: false // Disable automatic ObjectId for compatibility with admin
 });
 
 // Listening section schema
 const listeningSectionSchema = new mongoose.Schema({
+  id: { type: String, required: true }, // Custom string ID
   title: {
     type: String,
     required: true
@@ -143,14 +179,19 @@ const listeningSectionSchema = new mongoose.Schema({
     timestamp: Number // Audio timestamp in seconds
   })]
 }, {
-  _id: true
+  _id: false // Disable automatic ObjectId for compatibility with admin
 });
 
 // Writing task schema
 const writingTaskSchema = new mongoose.Schema({
+  id: { type: String, required: true }, // Custom string ID
   taskNumber: {
     type: Number,
     enum: [1, 2],
+    required: true
+  },
+  title: {
+    type: String,
     required: true
   },
   prompt: {
@@ -173,17 +214,19 @@ const writingTaskSchema = new mongoose.Schema({
     },
     max: Number
   },
+  sampleAnswer: String,
   criteria: [{
     name: { type: String, required: true },
     description: { type: String, required: true },
     maxScore: { type: Number, required: true }
   }]
 }, {
-  _id: true
+  _id: false // Disable automatic ObjectId for compatibility with admin
 });
 
 // Speaking part schema
 const speakingPartSchema = new mongoose.Schema({
+  id: { type: String, required: true }, // Custom string ID
   partNumber: {
     type: Number,
     enum: [1, 2, 3],
@@ -198,6 +241,7 @@ const speakingPartSchema = new mongoose.Schema({
     required: true
   },
   questions: [{
+    id: { type: String, required: true }, // Custom string ID
     question: { type: String, required: true },
     audioUrl: String,
     cueCard: String, // For Part 2
@@ -209,10 +253,10 @@ const speakingPartSchema = new mongoose.Schema({
     required: true // seconds
   }
 }, {
-  _id: true
+  _id: false // Disable automatic ObjectId for compatibility with admin
 });
 
-// Main test schema
+// Main test schema - Unified for both admin and client
 const testSchema = new mongoose.Schema({
   title: {
     type: String,
@@ -229,8 +273,8 @@ const testSchema = new mongoose.Schema({
   difficulty: {
     type: String,
     enum: {
-      values: ['Beginner', 'Intermediate', 'Advanced'],
-      message: 'Difficulty must be Beginner, Intermediate, or Advanced'
+      values: ['beginner', 'intermediate', 'advanced'],
+      message: 'Difficulty must be beginner, intermediate, or advanced'
     },
     required: true
   },
@@ -249,7 +293,7 @@ const testSchema = new mongoose.Schema({
   }],
   status: {
     type: String,
-    enum: ['active', 'draft', 'archived'],
+    enum: ['draft', 'published', 'archived', 'active'],
     default: 'draft'
   },
   isPublic: {
@@ -260,6 +304,10 @@ const testSchema = new mongoose.Schema({
     type: Boolean,
     default: false
   },
+  isTemplate: {
+    type: Boolean,
+    default: false
+  },
   tags: [String],
   category: {
     type: String,
@@ -267,11 +315,29 @@ const testSchema = new mongoose.Schema({
     default: 'Practice'
   },
   
-  // Test sections
+  // Test sections - Flat structure for flexibility
   readingSections: [readingSectionSchema],
   listeningSections: [listeningSectionSchema],
   writingTasks: [writingTaskSchema],
   speakingParts: [speakingPartSchema],
+  
+  // Legacy nested structure for backward compatibility
+  reading: {
+    sections: [readingSectionSchema],
+    totalTime: { type: Number, default: 60 }
+  },
+  listening: {
+    sections: [listeningSectionSchema],
+    totalTime: { type: Number, default: 40 }
+  },
+  writing: {
+    tasks: [writingTaskSchema],
+    totalTime: { type: Number, default: 60 }
+  },
+  speaking: {
+    parts: [speakingPartSchema],
+    totalTime: { type: Number, default: 15 }
+  },
   
   // Metadata
   createdBy: {
@@ -350,17 +416,28 @@ testSchema.index({ createdAt: -1 });
 testSchema.virtual('estimatedTime').get(function() {
   let totalTime = 0;
   
-  if (this.readingSections) {
+  if (this.readingSections && this.readingSections.length > 0) {
     totalTime += this.readingSections.reduce((sum, section) => sum + section.suggestedTime, 0);
+  } else if (this.reading && this.reading.sections) {
+    totalTime += this.reading.sections.reduce((sum, section) => sum + section.suggestedTime, 0);
   }
-  if (this.listeningSections) {
+  
+  if (this.listeningSections && this.listeningSections.length > 0) {
     totalTime += this.listeningSections.reduce((sum, section) => sum + section.suggestedTime, 0);
+  } else if (this.listening && this.listening.sections) {
+    totalTime += this.listening.sections.reduce((sum, section) => sum + section.suggestedTime, 0);
   }
-  if (this.writingTasks) {
+  
+  if (this.writingTasks && this.writingTasks.length > 0) {
     totalTime += this.writingTasks.reduce((sum, task) => sum + task.suggestedTime, 0);
+  } else if (this.writing && this.writing.tasks) {
+    totalTime += this.writing.tasks.reduce((sum, task) => sum + task.suggestedTime, 0);
   }
-  if (this.speakingParts) {
+  
+  if (this.speakingParts && this.speakingParts.length > 0) {
     totalTime += this.speakingParts.reduce((sum, part) => sum + Math.ceil(part.speakingTime / 60), 0);
+  } else if (this.speaking && this.speaking.parts) {
+    totalTime += this.speaking.parts.reduce((sum, part) => sum + Math.ceil(part.speakingTime / 60), 0);
   }
   
   return totalTime;
@@ -370,17 +447,28 @@ testSchema.virtual('estimatedTime').get(function() {
 testSchema.virtual('questionCount').get(function() {
   let count = 0;
   
-  if (this.readingSections) {
+  if (this.readingSections && this.readingSections.length > 0) {
     count += this.readingSections.reduce((sum, section) => sum + section.questions.length, 0);
+  } else if (this.reading && this.reading.sections) {
+    count += this.reading.sections.reduce((sum, section) => sum + section.questions.length, 0);
   }
-  if (this.listeningSections) {
+  
+  if (this.listeningSections && this.listeningSections.length > 0) {
     count += this.listeningSections.reduce((sum, section) => sum + section.questions.length, 0);
+  } else if (this.listening && this.listening.sections) {
+    count += this.listening.sections.reduce((sum, section) => sum + section.questions.length, 0);
   }
-  if (this.writingTasks) {
+  
+  if (this.writingTasks && this.writingTasks.length > 0) {
     count += this.writingTasks.length;
+  } else if (this.writing && this.writing.tasks) {
+    count += this.writing.tasks.length;
   }
-  if (this.speakingParts) {
+  
+  if (this.speakingParts && this.speakingParts.length > 0) {
     count += this.speakingParts.reduce((sum, part) => sum + part.questions.length, 0);
+  } else if (this.speaking && this.speaking.parts) {
+    count += this.speaking.parts.reduce((sum, part) => sum + part.questions.length, 0);
   }
   
   return count;
@@ -395,7 +483,7 @@ testSchema.pre('save', function(next) {
 // Static method to find public tests
 testSchema.statics.findPublic = function(filters = {}) {
   return this.find({ 
-    status: 'active', 
+    status: { $in: ['published', 'active'] }, 
     isPublic: true,
     ...filters
   });
@@ -404,7 +492,7 @@ testSchema.statics.findPublic = function(filters = {}) {
 // Static method to find featured tests
 testSchema.statics.findFeatured = function(limit = 10) {
   return this.find({ 
-    status: 'active', 
+    status: { $in: ['published', 'active'] }, 
     isPublic: true,
     isFeatured: true
   })
@@ -415,7 +503,7 @@ testSchema.statics.findFeatured = function(limit = 10) {
 // Static method to find popular tests
 testSchema.statics.findPopular = function(limit = 10) {
   return this.find({ 
-    status: 'active', 
+    status: { $in: ['published', 'active'] }, 
     isPublic: true
   })
   .sort({ 'statistics.totalAttempts': -1, 'statistics.averageScore': -1 })
@@ -446,9 +534,28 @@ testSchema.methods.updateStatistics = function(completionTime, score, completed 
     }
   }
   
-  // Completion rate will be calculated separately based on submissions
-  
   return this.save({ validateBeforeSave: false });
+};
+
+// Method to get unified test data (normalizes both old and new structures)
+testSchema.methods.getUnifiedData = function() {
+  const test = this.toObject();
+  
+  // Ensure we have the flat structure populated
+  if (!test.readingSections && test.reading && test.reading.sections) {
+    test.readingSections = test.reading.sections;
+  }
+  if (!test.listeningSections && test.listening && test.listening.sections) {
+    test.listeningSections = test.listening.sections;
+  }
+  if (!test.writingTasks && test.writing && test.writing.tasks) {
+    test.writingTasks = test.writing.tasks;
+  }
+  if (!test.speakingParts && test.speaking && test.speaking.parts) {
+    test.speakingParts = test.speaking.parts;
+  }
+  
+  return test;
 };
 
 module.exports = mongoose.model('Test', testSchema);

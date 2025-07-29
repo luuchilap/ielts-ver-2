@@ -101,16 +101,22 @@ const SpeakingTestEditor = () => {
       refetchOnWindowFocus: false,
       onSuccess: (data) => {
         const testData = data?.data?.data?.test;
-        if (testData?.speaking?.parts) {
-          const parts = testData.speaking.parts;
+        
+        // Try to load from flat structure first, then fallback to legacy structure
+        let partsData = testData?.speakingParts;
+        if (!partsData || partsData.length === 0) {
+          partsData = testData?.speaking?.parts;
+        }
+        
+        if (partsData) {
           setSpeakingData({
-            part1: parts.find(p => p.id === 'part-1') || {
+            part1: partsData.find(p => p.id === 'part-1') || {
               id: 'part-1', title: 'Part 1: Introduction & Interview', timeLimit: 5, description: 'General questions about yourself and familiar topics', topics: [ { id: 'topic-1', name: 'Home/Accommodation', questions: [] }, { id: 'topic-2', name: 'Work/Study', questions: [] }, { id: 'topic-3', name: 'Familiar Topic', questions: [] } ]
             },
-            part2: parts.find(p => p.id === 'part-2') || {
+            part2: partsData.find(p => p.id === 'part-2') || {
               id: 'part-2', title: 'Part 2: Long Turn', timeLimit: 4, preparationTime: 1, speakingTime: 2, description: 'Speak about a given topic using cue card', cueCard: { topic: '', description: '', points: ['', '', '', ''], instructions: 'You will have to talk about the topic for one to two minutes. You have one minute to think about what you are going to say. You can make some notes to help you if you wish.' }, followUpQuestions: []
             },
-            part3: parts.find(p => p.id === 'part-3') || {
+            part3: partsData.find(p => p.id === 'part-3') || {
               id: 'part-3', title: 'Part 3: Discussion', timeLimit: 5, description: 'Discussion of more abstract ideas related to Part 2 topic', themes: [ { id: 'theme-1', name: 'Abstract Theme 1', questions: [] }, { id: 'theme-2', name: 'Abstract Theme 2', questions: [] } ]
             }
           });
@@ -185,9 +191,13 @@ const SpeakingTestEditor = () => {
     }
 
     // Prepare data for API
+    const parts = [speakingData.part1, speakingData.part2, speakingData.part3];
     const updateData = {
+      // Flat structure (primary)
+      speakingParts: parts,
+      // Legacy structure (backward compatibility)
       speaking: {
-        parts: [speakingData.part1, speakingData.part2, speakingData.part3],
+        parts: parts,
         totalTime: speakingData.part1.timeLimit + speakingData.part2.timeLimit + speakingData.part3.timeLimit
       }
     };
