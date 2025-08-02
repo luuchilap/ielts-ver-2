@@ -35,7 +35,7 @@ const TestCreateForm = () => {
       title: '',
       description: '',
       difficulty: 'intermediate',
-      totalTime: 180,
+      duration: 180,
       tags: [],
       status: 'draft'
     }
@@ -61,8 +61,15 @@ const TestCreateForm = () => {
     }
 
     // Prepare test data
+    const skills = [];
+    if (selectedSkills.reading) skills.push('Reading');
+    if (selectedSkills.listening) skills.push('Listening');
+    if (selectedSkills.writing) skills.push('Writing');
+    if (selectedSkills.speaking) skills.push('Speaking');
+
     const testData = {
       ...data,
+      skills: skills,
       tags: Array.isArray(data.tags)
         ? data.tags.map(tag => tag.trim()).filter(Boolean)
         : (data.tags || '').split(',').map(tag => tag.trim()).filter(Boolean),
@@ -210,27 +217,28 @@ const TestCreateForm = () => {
 
               <div>
                 <label className="block text-sm font-medium text-secondary-700 mb-1">
-                  Total Time (minutes)
+                  Test Duration (minutes)
                 </label>
                 <input
                   type="number"
                   min="30"
                   max="300"
-                  className={`input ${errors.totalTime ? 'input-error' : ''}`}
-                  {...register('totalTime', {
-                    required: 'Total time is required',
+                  className={`input ${errors.duration ? 'input-error' : ''}`}
+                  {...register('duration', {
+                    required: 'Test duration is required',
+                    valueAsNumber: true,
                     min: {
                       value: 30,
-                      message: 'Minimum time is 30 minutes'
+                      message: 'Minimum duration is 30 minutes'
                     },
                     max: {
                       value: 300,
-                      message: 'Maximum time is 300 minutes'
+                      message: 'Maximum duration is 300 minutes'
                     }
                   })}
                 />
-                {errors.totalTime && (
-                  <p className="mt-1 text-sm text-error-600">{errors.totalTime.message}</p>
+                {errors.duration && (
+                  <p className="mt-1 text-sm text-error-600">{errors.duration.message}</p>
                 )}
               </div>
             </div>

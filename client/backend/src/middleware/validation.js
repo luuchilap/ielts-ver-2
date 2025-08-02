@@ -29,13 +29,6 @@ exports.validateAuth = {
       .withMessage('Password must be at least 6 characters long')
       .matches(/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)/)
       .withMessage('Password must contain at least one uppercase letter, one lowercase letter, and one number'),
-    body('confirmPassword')
-      .custom((value, { req }) => {
-        if (value !== req.body.password) {
-          throw new Error('Password confirmation does not match password');
-        }
-        return value;
-      }),
     body('firstName')
       .trim()
       .isLength({ min: 1, max: 50 })
@@ -100,8 +93,15 @@ exports.validateAuth = {
       }),
     body('phone')
       .optional()
-      .isMobilePhone()
-      .withMessage('Please provide a valid phone number'),
+      .custom((value) => {
+        if (!value) return true; // Allow empty/undefined values
+        // More flexible phone validation - allow various formats
+        const phoneRegex = /^[\+]?[0-9\s\-\(\)]{7,20}$/;
+        if (!phoneRegex.test(value)) {
+          throw new Error('Please provide a valid phone number (7-20 digits, may include +, spaces, dashes, parentheses)');
+        }
+        return true;
+      }),
     body('country')
       .optional()
       .trim()

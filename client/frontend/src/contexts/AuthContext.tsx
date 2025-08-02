@@ -112,8 +112,8 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       }
 
       const response = await authApi.me();
-      if (response.success && response.data) {
-        dispatch({ type: 'AUTH_SUCCESS', payload: response.data });
+      if (response.success && response.data && response.data.user) {
+        dispatch({ type: 'AUTH_SUCCESS', payload: response.data.user });
       } else {
         localStorage.removeItem('token');
         dispatch({ type: 'AUTH_FAILURE', payload: 'Invalid token' });
@@ -180,8 +180,8 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     try {
       const response = await authApi.updateProfile(data);
       
-      if (response.success && response.data) {
-        dispatch({ type: 'UPDATE_PROFILE', payload: response.data });
+      if (response.success && response.data && response.data.user) {
+        dispatch({ type: 'UPDATE_PROFILE', payload: response.data.user });
         toast.success('Profile updated successfully!');
       } else {
         throw new Error(response.message || 'Profile update failed');

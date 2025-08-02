@@ -105,6 +105,11 @@ const validateTestCreation = [
     .isInt({ min: 30, max: 300 })
     .withMessage('Total time must be between 30 and 300 minutes'),
   
+  body('duration')
+    .optional()
+    .isInt({ min: 30, max: 300 })
+    .withMessage('Test duration must be between 30 and 300 minutes'),
+  
   body('tags')
     .optional()
     .isArray()
@@ -140,6 +145,11 @@ const validateTestUpdate = [
     .optional()
     .isInt({ min: 30, max: 300 })
     .withMessage('Total time must be between 30 and 300 minutes'),
+  
+  body('duration')
+    .optional()
+    .isInt({ min: 30, max: 300 })
+    .withMessage('Test duration must be between 30 and 300 minutes'),
   
   body('tags')
     .optional()

@@ -88,8 +88,8 @@ const login = async (req, res) => {
 
     const { email, password, rememberMe } = req.body;
 
-    // Find user by email
-    const user = await User.findOne({ email });
+    // Find user by email (include password for comparison)
+    const user = await User.findOne({ email }).select('+password');
     if (!user) {
       return res.status(401).json({
         success: false,

@@ -77,6 +77,15 @@ const userSchema = new mongoose.Schema({
     },
     default: 'Beginner'
   },
+  
+  // Role system for both admin and client users
+  role: {
+    type: String,
+    enum: ['student', 'super_admin', 'content_manager', 'examiner'],
+    default: 'student'
+  },
+  
+  // Account status
   isActive: {
     type: Boolean,
     default: true
@@ -85,6 +94,8 @@ const userSchema = new mongoose.Schema({
     type: Boolean,
     default: false
   },
+  
+  // Security fields
   emailVerificationToken: {
     type: String,
     select: false
@@ -111,6 +122,8 @@ const userSchema = new mongoose.Schema({
   lockUntil: {
     type: Date
   },
+  
+  // User preferences
   preferences: {
     language: {
       type: String,
@@ -136,6 +149,8 @@ const userSchema = new mongoose.Schema({
       }
     }
   },
+  
+  // User statistics (mainly for students)
   statistics: {
     totalTestsTaken: {
       type: Number,
@@ -171,6 +186,12 @@ const userSchema = new mongoose.Schema({
         default: 0
       }
     }
+  },
+  
+  // Admin-specific fields
+  createdBy: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User'
   }
 }, {
   timestamps: true,
@@ -192,9 +213,11 @@ const userSchema = new mongoose.Schema({
 
 // Indexes
 userSchema.index({ email: 1 }, { unique: true });
+userSchema.index({ role: 1 });
 userSchema.index({ createdAt: -1 });
 userSchema.index({ lastLogin: -1 });
 userSchema.index({ 'statistics.averageScore': -1 });
+userSchema.index({ isActive: 1 });
 
 // Virtual for full name
 userSchema.virtual('fullName').get(function() {
@@ -204,6 +227,16 @@ userSchema.virtual('fullName').get(function() {
 // Virtual for account lock status
 userSchema.virtual('isLocked').get(function() {
   return !!(this.lockUntil && this.lockUntil > Date.now());
+});
+
+// Virtual to check if user is admin
+userSchema.virtual('isAdmin').get(function() {
+  return ['super_admin', 'content_manager', 'examiner'].includes(this.role);
+});
+
+// Virtual to check if user is student
+userSchema.virtual('isStudent').get(function() {
+  return this.role === 'student';
 });
 
 // Hash password before saving
@@ -285,7 +318,7 @@ userSchema.methods.generatePasswordResetToken = function() {
   return resetToken;
 };
 
-// Update user statistics
+// Update user statistics (for students)
 userSchema.methods.updateStatistics = function(testScore) {
   const stats = this.statistics;
   
@@ -311,6 +344,24 @@ userSchema.methods.updateStatistics = function(testScore) {
   }
   
   return this.save({ validateBeforeSave: false });
+};
+
+// Static method to find admin users
+userSchema.statics.findAdmins = function(filters = {}) {
+  return this.find({ 
+    role: { $in: ['super_admin', 'content_manager', 'examiner'] },
+    isActive: true,
+    ...filters
+  });
+};
+
+// Static method to find students
+userSchema.statics.findStudents = function(filters = {}) {
+  return this.find({ 
+    role: 'student',
+    isActive: true,
+    ...filters
+  });
 };
 
 module.exports = mongoose.model('User', userSchema);

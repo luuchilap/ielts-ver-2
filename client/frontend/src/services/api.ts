@@ -67,12 +67,12 @@ export const authApi = {
     return response.data;
   },
 
-  me: async (): Promise<ApiResponse<User>> => {
+  me: async (): Promise<ApiResponse<{ user: User }>> => {
     const response = await api.get('/auth/me');
     return response.data;
   },
 
-  updateProfile: async (data: Partial<User>): Promise<ApiResponse<User>> => {
+  updateProfile: async (data: Partial<User>): Promise<ApiResponse<{ user: User }>> => {
     const response = await api.put('/auth/profile', data);
     return response.data;
   },

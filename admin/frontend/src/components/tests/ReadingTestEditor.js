@@ -32,6 +32,7 @@ const ReadingTestEditor = () => {
         title: 'Section 1',
         passage: '',
         suggestedTime: 20,
+        order: 1,
         questionGroups: []
       },
       {
@@ -39,6 +40,7 @@ const ReadingTestEditor = () => {
         title: 'Section 2',
         passage: '',
         suggestedTime: 20,
+        order: 2,
         questionGroups: []
       },
       {
@@ -46,6 +48,7 @@ const ReadingTestEditor = () => {
         title: 'Section 3', 
         passage: '',
         suggestedTime: 20,
+        order: 3,
         questionGroups: []
       }
     ]
@@ -94,6 +97,7 @@ const ReadingTestEditor = () => {
               title: section.title || `Section ${index + 1}`,
               passage: section.passage || '',
               suggestedTime: section.suggestedTime || 20,
+              order: section.order || (index + 1),
               questionGroups: questionGroups
             };
           });
@@ -114,9 +118,9 @@ const ReadingTestEditor = () => {
           console.log('No reading sections found, initializing with defaults');
           setReadingData({
             sections: [
-              { id: 'section-1', title: 'Section 1', passage: '', suggestedTime: 20, questionGroups: [] },
-              { id: 'section-2', title: 'Section 2', passage: '', suggestedTime: 20, questionGroups: [] },
-              { id: 'section-3', title: 'Section 3', passage: '', suggestedTime: 20, questionGroups: [] }
+              { id: 'section-1', title: 'Section 1', passage: '', suggestedTime: 20, order: 1, questionGroups: [] },
+              { id: 'section-2', title: 'Section 2', passage: '', suggestedTime: 20, order: 2, questionGroups: [] },
+              { id: 'section-3', title: 'Section 3', passage: '', suggestedTime: 20, order: 3, questionGroups: [] }
             ]
           });
           setActiveSection(0);
@@ -146,9 +150,9 @@ const ReadingTestEditor = () => {
     setActiveSection(0); // Reset active section first
     setReadingData({
       sections: [
-        { id: 'section-1', title: 'Section 1', passage: '', suggestedTime: 20, questionGroups: [] },
-        { id: 'section-2', title: 'Section 2', passage: '', suggestedTime: 20, questionGroups: [] },
-        { id: 'section-3', title: 'Section 3', passage: '', suggestedTime: 20, questionGroups: [] }
+        { id: 'section-1', title: 'Section 1', passage: '', suggestedTime: 20, order: 1, questionGroups: [] },
+        { id: 'section-2', title: 'Section 2', passage: '', suggestedTime: 20, order: 2, questionGroups: [] },
+        { id: 'section-3', title: 'Section 3', passage: '', suggestedTime: 20, order: 3, questionGroups: [] }
       ]
     });
     // Only refetch if not a new test
@@ -216,7 +220,7 @@ const ReadingTestEditor = () => {
     }
 
     // Prepare data for API - convert questionGroups back to questions for backend compatibility
-    const sectionsForSave = readingData.sections.map(section => {
+    const sectionsForSave = readingData.sections.map((section, sectionIndex) => {
       // Flatten all questions from all groups
       const allQuestions = [];
       let questionNumber = 1;
@@ -235,6 +239,7 @@ const ReadingTestEditor = () => {
 
       return {
         ...section,
+        order: sectionIndex + 1, // Add required order field for sections
         questions: allQuestions,
         questionGroups: section.questionGroups // Keep groups for future use
       };
