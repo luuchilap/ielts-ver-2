@@ -59,8 +59,8 @@ npm run build
 Create a `.env` file in the root directory:
 
 ```env
-REACT_APP_API_URL=http://localhost:5000/api
-REACT_APP_UPLOADS_URL=http://localhost:5000/uploads
+REACT_APP_API_URL=http://localhost:5001/api
+REACT_APP_UPLOADS_URL=http://localhost:5001/uploads
 ```
 
 ## 🏗️ Project Structure

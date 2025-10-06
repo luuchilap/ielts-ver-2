@@ -10,7 +10,7 @@ import {
 } from '../types';
 import toast from 'react-hot-toast';
 
-const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:5000/api';
+const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:5001/api';
 
 // Create axios instance
 const api: AxiosInstance = axios.create({
@@ -121,8 +121,11 @@ export const testApi = {
     return response.data;
   },
 
-  startTest: async (testId: string): Promise<ApiResponse<TestSubmission>> => {
-    const response = await api.post(`/tests/${testId}/start`);
+  startTest: async (testId: string, options?: {
+    forceRestart?: boolean;
+    selectedSkills?: string[];
+  }): Promise<ApiResponse<TestSubmission>> => {
+    const response = await api.post(`/tests/${testId}/start`, options);
     return response.data;
   },
 

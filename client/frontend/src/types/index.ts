@@ -38,13 +38,41 @@ export interface Test {
   description: string;
   difficulty: 'Beginner' | 'Intermediate' | 'Advanced';
   duration: number; // in minutes
+  totalTime?: number; // Alternative field name for compatibility
   totalQuestions: number;
   skills: ('Reading' | 'Listening' | 'Writing' | 'Speaking')[];
   status: 'active' | 'draft' | 'archived';
+  category?: 'Academic' | 'General Training' | 'Practice' | 'Mock Test';
+  isPublic?: boolean;
+  isFeatured?: boolean;
+  statistics?: {
+    totalAttempts: number;
+    averageScore: number;
+    averageCompletionTime: number;
+    completionRate: number;
+  };
+  // Old structure (for compatibility)
   readingSections?: ReadingSection[];
   listeningSections?: ListeningSection[];
   writingTasks?: WritingTask[];
   speakingParts?: SpeakingPart[];
+  // New nested structure
+  reading?: {
+    sections: ReadingSection[];
+    totalTime: number;
+  };
+  listening?: {
+    sections: ListeningSection[];
+    totalTime: number;
+  };
+  writing?: {
+    tasks: WritingTask[];
+    totalTime: number;
+  };
+  speaking?: {
+    parts: SpeakingPart[];
+    totalTime: number;
+  };
   createdAt: string;
   updatedAt: string;
 }
@@ -52,6 +80,7 @@ export interface Test {
 // Reading types
 export interface ReadingSection {
   _id: string;
+  id?: string; // compatibility field
   title: string;
   passage: string;
   suggestedTime: number;
@@ -60,6 +89,7 @@ export interface ReadingSection {
 
 export interface ReadingQuestion {
   _id: string;
+  id?: string; // compatibility field
   type: ReadingQuestionType;
   order: number;
   content: any; // Will be typed based on question type
@@ -107,6 +137,7 @@ export interface FillInBlanks {
 // Listening types
 export interface ListeningSection {
   _id: string;
+  id?: string; // compatibility field
   title: string;
   audioUrl: string;
   transcript?: string;
@@ -116,6 +147,7 @@ export interface ListeningSection {
 
 export interface ListeningQuestion {
   _id: string;
+  id?: string; // compatibility field
   type: ReadingQuestionType; // Similar question types
   order: number;
   content: any;
@@ -125,16 +157,21 @@ export interface ListeningQuestion {
 // Writing types
 export interface WritingTask {
   _id: string;
+  id?: string; // compatibility field
   taskNumber: 1 | 2;
+  title?: string;
   prompt: string;
   imageUrl?: string;
   requirements: string;
-  suggestedTime: number;
-  wordLimit: {
+  timeLimit?: number; // minutes
+  suggestedTime?: number; // minutes  
+  minWords?: number; // compatibility field
+  maxWords?: number; // compatibility field
+  wordLimit?: {
     min: number;
     max?: number;
   };
-  criteria: WritingCriteria[];
+  criteria?: WritingCriteria[];
 }
 
 export interface WritingCriteria {
@@ -146,16 +183,19 @@ export interface WritingCriteria {
 // Speaking types
 export interface SpeakingPart {
   _id: string;
+  id?: string; // compatibility field
   partNumber: 1 | 2 | 3;
   title: string;
   instructions: string;
+  timeLimit?: number; // minutes  
   questions: SpeakingQuestion[];
   preparationTime?: number; // seconds
-  speakingTime: number; // seconds
+  speakingTime?: number; // seconds
 }
 
 export interface SpeakingQuestion {
   _id: string;
+  id?: string; // compatibility field
   question: string;
   audioUrl?: string;
   cueCard?: string; // For Part 2
@@ -175,8 +215,83 @@ export interface TestSubmission {
   };
   startTime: string;
   endTime?: string;
-  status: 'in_progress' | 'completed' | 'abandoned';
+  totalTimeSpent?: number;
+  remainingTime?: number;
+  currentSection?: {
+    skill: string;
+    sectionIndex: number;
+    questionIndex: number;
+  };
+  status: 'in_progress' | 'completed' | 'abandoned' | 'paused' | 'expired';
   scores?: TestScores;
+  results?: {
+    correctAnswers: number;
+    totalQuestions: number;
+    skillBreakdown?: {
+      reading?: {
+        correct: number;
+        total: number;
+        percentage: number;
+      };
+      listening?: {
+        correct: number;
+        total: number;
+        percentage: number;
+      };
+      writing?: {
+        task1Score?: number;
+        task2Score?: number;
+        criteriaScores?: Record<string, number>;
+      };
+      speaking?: {
+        part1Score?: number;
+        part2Score?: number;
+        part3Score?: number;
+        criteriaScores?: Record<string, number>;
+      };
+    };
+    questionAnalysis?: Array<{
+      questionId: string;
+      userAnswer: any;
+      correctAnswer: any;
+      isCorrect: boolean;
+      points: number;
+      timeSpent: number;
+    }>;
+  };
+  feedback?: {
+    automated?: {
+      strengths: string[];
+      weaknesses: string[];
+      recommendations: string[];
+    };
+    manual?: {
+      examinerNotes?: string;
+      detailedFeedback?: string;
+      reviewedBy?: string;
+      reviewedAt?: string;
+    };
+  };
+  metadata?: {
+    ipAddress?: string;
+    userAgent?: string;
+    browserInfo?: {
+      name: string;
+      version: string;
+      os: string;
+    };
+    deviceType?: 'desktop' | 'tablet' | 'mobile';
+    pauseCount?: number;
+    resumeCount?: number;
+    tabSwitches?: number;
+    warnings?: string[];
+  };
+  flags?: {
+    isReviewed?: boolean;
+    needsManualReview?: boolean;
+    hasTechnicalIssues?: boolean;
+    isValid?: boolean;
+  };
   createdAt: string;
   updatedAt: string;
 }
@@ -232,12 +347,14 @@ export interface ApiResponse<T = any> {
   message?: string;
   data?: T;
   errors?: string[];
+  isResuming?: boolean;
 }
 
 export interface PaginatedResponse<T> {
   success: boolean;
+  message?: string;
   data: T[];
-  pagination: {
+  pagination?: {
     page: number;
     limit: number;
     total: number;

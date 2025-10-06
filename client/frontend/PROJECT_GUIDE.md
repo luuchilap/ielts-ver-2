@@ -255,8 +255,8 @@ npm test
 
 ### Environment Configuration
 ```env
-REACT_APP_API_URL=http://localhost:5000/api
-REACT_APP_UPLOADS_URL=http://localhost:5000/uploads
+REACT_APP_API_URL=http://localhost:5001/api
+REACT_APP_UPLOADS_URL=http://localhost:5001/uploads
 REACT_APP_APP_NAME=IELTS Test Platform
 ```
 

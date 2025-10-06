@@ -8,24 +8,27 @@ import {
   Trash2,
   Clock,
   Download,
-  FileText
+  FileText,
+  Loader2
 } from 'lucide-react';
 import { toast } from 'react-hot-toast';
+import { uploadAPI } from '../../../services/api';
 
 const ListeningAudioManager = ({ section, onChange }) => {
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
   const [showTranscript, setShowTranscript] = useState(false);
+  const [isUploading, setIsUploading] = useState(false);
   const audioRef = useRef(null);
   const fileInputRef = useRef(null);
 
-  const handleFileUpload = (event) => {
+  const handleFileUpload = async (event) => {
     const file = event.target.files[0];
     if (!file) return;
 
     // Validate file type
-    const allowedTypes = ['audio/mp3', 'audio/wav', 'audio/ogg', 'audio/m4a'];
+    const allowedTypes = ['audio/mp3', 'audio/wav', 'audio/ogg', 'audio/m4a', 'audio/mpeg'];
     if (!allowedTypes.includes(file.type)) {
       toast.error('Please upload a valid audio file (MP3, WAV, OGG, M4A)');
       return;
@@ -38,15 +41,33 @@ const ListeningAudioManager = ({ section, onChange }) => {
       return;
     }
 
-    // Create object URL for preview
-    const audioUrl = URL.createObjectURL(file);
+    setIsUploading(true);
     
-    onChange({
-      audioFile: file,
-      audioUrl: audioUrl
-    });
+    try {
+      // Upload file to server
+      const response = await uploadAPI.uploadAudio(file);
+      
+      if (response.data.success) {
+        const { data } = response.data;
+        
+        // Update the section with the uploaded file info
+        onChange({
+          audioFile: null, // Clear the file object since it's now on server
+          audioUrl: data.url, // Use the server URL
+          audioFilename: data.filename,
+          originalName: data.originalName
+        });
 
-    toast.success('Audio file uploaded successfully!');
+        toast.success('Audio file uploaded successfully!');
+      } else {
+        throw new Error(response.data.message || 'Upload failed');
+      }
+    } catch (error) {
+      console.error('Upload error:', error);
+      toast.error(error.response?.data?.message || 'Failed to upload audio file');
+    } finally {
+      setIsUploading(false);
+    }
   };
 
   const handlePlay = () => {
@@ -93,12 +114,15 @@ const ListeningAudioManager = ({ section, onChange }) => {
   };
 
   const handleRemoveAudio = () => {
-    if (section.audioUrl) {
+    // Only revoke object URLs (for local files), not server URLs
+    if (section.audioUrl && section.audioUrl.startsWith('blob:')) {
       URL.revokeObjectURL(section.audioUrl);
     }
     onChange({
       audioFile: null,
       audioUrl: '',
+      audioFilename: '',
+      originalName: '',
       transcript: ''
     });
     setIsPlaying(false);
@@ -126,7 +150,7 @@ const ListeningAudioManager = ({ section, onChange }) => {
       </div>
 
       {/* Audio Upload */}
-      {!section.audioUrl ? (
+      {!section.audioUrl && !isUploading ? (
         <div className="border-2 border-dashed border-gray-300 rounded-lg p-8">
           <div className="text-center">
             <FileAudio className="w-12 h-12 text-gray-400 mx-auto mb-4" />
@@ -136,20 +160,42 @@ const ListeningAudioManager = ({ section, onChange }) => {
             </p>
             <button
               onClick={() => fileInputRef.current?.click()}
-              className="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+              disabled={isUploading}
+              className="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              <Upload className="w-4 h-4 mr-2" />
-              Choose File
+              {isUploading ? (
+                <>
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  Uploading...
+                </>
+              ) : (
+                <>
+                  <Upload className="w-4 h-4 mr-2" />
+                  Choose File
+                </>
+              )}
             </button>
             <input
               ref={fileInputRef}
               type="file"
               accept="audio/*"
               onChange={handleFileUpload}
+              disabled={isUploading}
               className="hidden"
             />
             <p className="text-xs text-gray-500 mt-2">
               Supported formats: MP3, WAV, OGG, M4A (Max 50MB)
+            </p>
+          </div>
+        </div>
+      ) : isUploading ? (
+        /* Upload Progress */
+        <div className="border-2 border-dashed border-blue-300 rounded-lg p-8 bg-blue-50">
+          <div className="text-center">
+            <Loader2 className="w-12 h-12 text-blue-600 mx-auto mb-4 animate-spin" />
+            <h4 className="text-lg font-medium text-blue-900 mb-2">Uploading Audio File</h4>
+            <p className="text-blue-700">
+              Please wait while your audio file is being uploaded...
             </p>
           </div>
         </div>
@@ -161,10 +207,10 @@ const ListeningAudioManager = ({ section, onChange }) => {
               <FileAudio className="w-6 h-6 text-blue-600" />
               <div>
                 <p className="font-medium text-gray-900">
-                  {section.audioFile?.name || 'Audio File'}
+                  {section.originalName || section.audioFile?.name || 'Audio File'}
                 </p>
                 <p className="text-sm text-gray-500">
-                  {section.audioFile && `${(section.audioFile.size / 1024 / 1024).toFixed(1)} MB`}
+                  {section.audioFile ? `${(section.audioFile.size / 1024 / 1024).toFixed(1)} MB` : 'Uploaded'}
                 </p>
               </div>
             </div>
@@ -233,7 +279,8 @@ const ListeningAudioManager = ({ section, onChange }) => {
                   Format
                 </div>
                 <div className="font-medium">
-                  {section.audioFile?.type?.split('/')[1]?.toUpperCase() || 'Unknown'}
+                  {section.audioFile?.type?.split('/')[1]?.toUpperCase() || 
+                   section.originalName?.split('.').pop()?.toUpperCase() || 'Unknown'}
                 </div>
               </div>
               <div className="bg-white rounded p-3">
@@ -242,7 +289,7 @@ const ListeningAudioManager = ({ section, onChange }) => {
                   Size
                 </div>
                 <div className="font-medium">
-                  {section.audioFile && `${(section.audioFile.size / 1024 / 1024).toFixed(1)} MB`}
+                  {section.audioFile ? `${(section.audioFile.size / 1024 / 1024).toFixed(1)} MB` : 'Uploaded'}
                 </div>
               </div>
             </div>

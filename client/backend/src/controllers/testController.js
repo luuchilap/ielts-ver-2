@@ -17,44 +17,44 @@ exports.getTests = async (req, res) => {
       sortOrder = 'desc'
     } = req.query;
 
-    // Build filter object
-    const filter = {
-      status: 'active',
-      isPublic: true
-    };
+    // Build filter object for additional filters
+    const additionalFilters = {};
 
     if (difficulty) {
-      filter.difficulty = difficulty;
+      additionalFilters.difficulty = difficulty;
     }
 
     if (skills) {
       const skillsArray = Array.isArray(skills) ? skills : skills.split(',');
-      filter.skills = { $in: skillsArray };
+      additionalFilters.skills = { $in: skillsArray };
     }
 
     if (category) {
-      filter.category = category;
+      additionalFilters.category = category;
     }
 
     // Text search
     if (search) {
-      filter.$text = { $search: search };
+      additionalFilters.$text = { $search: search };
     }
 
     // Sort object
     const sort = {};
     sort[sortBy] = sortOrder === 'desc' ? -1 : 1;
 
+    // Use the findPublic static method to get tests with correct status
+    let query = Test.findPublic(additionalFilters);
+
     // Execute query with pagination
-    const tests = await Test.find(filter)
+    const tests = await query
       .sort(sort)
       .limit(limit * 1)
       .skip((page - 1) * limit)
       .select('-readingSections.passage -listeningSections.transcript -writingTasks.prompt -speakingParts.questions')
       .lean();
 
-    // Get total count for pagination
-    const total = await Test.countDocuments(filter);
+    // Get total count for pagination - also use findPublic for consistent counting
+    const total = await Test.findPublic(additionalFilters).countDocuments();
 
     res.json({
       success: true,
@@ -131,10 +131,7 @@ exports.getPopularTests = async (req, res) => {
 // @access  Public
 exports.getCategories = async (req, res) => {
   try {
-    const categories = await Test.distinct('category', { 
-      status: 'active', 
-      isPublic: true 
-    });
+    const categories = await Test.findPublic().distinct('category');
 
     res.json({
       success: true,
@@ -178,11 +175,7 @@ exports.getTestById = async (req, res) => {
   try {
     const { testId } = req.params;
 
-    const test = await Test.findOne({
-      _id: testId,
-      status: 'active',
-      isPublic: true
-    });
+    const test = await Test.findPublic({ _id: testId }).findOne();
 
     if (!test) {
       return res.status(404).json({
@@ -192,37 +185,65 @@ exports.getTestById = async (req, res) => {
     }
 
     // Don't expose correct answers to non-authenticated users
-    const sanitizedTest = {
-      ...test.toJSON(),
-      readingSections: test.readingSections?.map(section => ({
-        ...section.toJSON(),
-        questions: section.questions.map(question => ({
+    const testObj = test.toJSON();
+    
+    // Helper function to sanitize questions
+    const sanitizeQuestions = (questions) => {
+      return questions?.map(question => {
+        const sanitizedContent = { ...question.content };
+        
+        // Remove answer-related fields to prevent cheating
+        delete sanitizedContent.correctAnswer;
+        delete sanitizedContent.correctAnswers;
+        delete sanitizedContent.explanation;
+        delete sanitizedContent.answer; // For true_false_not_given type
+        delete sanitizedContent.correctMatching; // For matching types
+        
+        return {
           _id: question._id,
-          type: question.type,
-          order: question.order,
-          content: {
-            ...question.content,
-            correctAnswer: undefined,
-            correctAnswers: undefined,
-            explanation: undefined
-          }
-        }))
-      })),
-      listeningSections: test.listeningSections?.map(section => ({
-        ...section.toJSON(),
-        questions: section.questions.map(question => ({
-          _id: question._id,
+          id: question.id,
           type: question.type,
           order: question.order,
           timestamp: question.timestamp,
-          content: {
-            ...question.content,
-            correctAnswer: undefined,
-            correctAnswers: undefined,
-            explanation: undefined
-          }
+          points: question.points,
+          timeLimit: question.timeLimit,
+          difficulty: question.difficulty,
+          content: sanitizedContent
+        };
+      }) || [];
+    };
+    
+    // Handle both old and new structure
+    const sanitizedTest = {
+      ...testObj,
+      // Old structure (compatibility)
+      readingSections: (testObj.readingSections || testObj.reading?.sections)?.map(section => ({
+        ...section,
+        questions: sanitizeQuestions(section.questions)
+      })),
+      listeningSections: (testObj.listeningSections || testObj.listening?.sections)?.map(section => ({
+        ...section,
+        questions: sanitizeQuestions(section.questions)
+      })),
+      writingTasks: testObj.writingTasks || testObj.writing?.tasks,
+      speakingParts: testObj.speakingParts || testObj.speaking?.parts,
+      // New structure
+      reading: testObj.reading ? {
+        ...testObj.reading,
+        sections: testObj.reading.sections?.map(section => ({
+          ...section,
+          questions: sanitizeQuestions(section.questions)
         }))
-      }))
+      } : undefined,
+      listening: testObj.listening ? {
+        ...testObj.listening,
+        sections: testObj.listening.sections?.map(section => ({
+          ...section,
+          questions: sanitizeQuestions(section.questions)
+        }))
+      } : undefined,
+      writing: testObj.writing,
+      speaking: testObj.speaking
     };
 
     res.json({
@@ -245,14 +266,11 @@ exports.getTestById = async (req, res) => {
 exports.startTest = async (req, res) => {
   try {
     const { testId } = req.params;
+    const { forceRestart = false, selectedSkills = null } = req.body; // Allow force restart and skill selection
     const userId = req.user.id;
 
-    // Check if test exists and is active
-    const test = await Test.findOne({
-      _id: testId,
-      status: 'active',
-      isPublic: true
-    });
+    // Check if test exists and is public
+    const test = await Test.findPublic({ _id: testId }).findOne();
 
     if (!test) {
       return res.status(404).json({
@@ -268,12 +286,69 @@ exports.startTest = async (req, res) => {
       status: { $in: ['in_progress', 'paused'] }
     });
 
-    if (existingSubmission) {
-      return res.status(409).json({
-        success: false,
-        message: 'You already have an active submission for this test',
-        data: { submissionId: existingSubmission._id }
+    if (existingSubmission && !forceRestart) {
+      // If user wants to continue existing submission, return it
+      return res.status(200).json({
+        success: true,
+        message: 'Resuming existing test submission',
+        data: existingSubmission,
+        isResuming: true
       });
+    }
+
+    // If force restart is true, abandon the existing submission
+    if (existingSubmission && forceRestart) {
+      existingSubmission.status = 'abandoned';
+      await existingSubmission.save();
+    }
+
+    // Determine which skills to include in this submission
+    const availableSkills = test.skills || [];
+    const skillsToTest = selectedSkills && selectedSkills.length > 0 
+      ? selectedSkills.filter(skill => availableSkills.includes(skill))
+      : availableSkills;
+
+    if (skillsToTest.length === 0) {
+      return res.status(400).json({
+        success: false,
+        message: 'No valid skills selected for this test'
+      });
+    }
+
+    // Calculate total questions for selected skills
+    let totalQuestions = 0;
+    let duration = 0;
+
+    skillsToTest.forEach(skill => {
+      const skillLower = skill.toLowerCase();
+      switch (skillLower) {
+        case 'reading':
+          const readingSections = test.readingSections || test.reading?.sections || [];
+          totalQuestions += readingSections.reduce((sum, section) => sum + (section.questions?.length || 0), 0);
+          duration += 60; // 60 minutes for reading
+          break;
+        case 'listening':
+          const listeningSections = test.listeningSections || test.listening?.sections || [];
+          totalQuestions += listeningSections.reduce((sum, section) => sum + (section.questions?.length || 0), 0);
+          duration += 30; // 30 minutes for listening
+          break;
+        case 'writing':
+          const writingTasks = test.writingTasks || test.writing?.tasks || [];
+          totalQuestions += writingTasks.length;
+          duration += 60; // 60 minutes for writing
+          break;
+        case 'speaking':
+          const speakingParts = test.speakingParts || test.speaking?.parts || [];
+          totalQuestions += speakingParts.length;
+          duration += 15; // 15 minutes for speaking
+          break;
+      }
+    });
+
+    // If no skills selected, use the full test
+    if (skillsToTest.length === availableSkills.length) {
+      totalQuestions = test.totalQuestions;
+      duration = test.duration || test.totalTime || 120;
     }
 
     // Create new submission
@@ -281,14 +356,19 @@ exports.startTest = async (req, res) => {
       testId,
       userId,
       startTime: new Date(),
-      remainingTime: test.duration * 60, // Convert minutes to seconds
+      remainingTime: duration * 60, // Convert minutes to seconds
       currentSection: {
-        skill: test.skills[0]?.toLowerCase(),
+        skill: skillsToTest[0]?.toLowerCase(),
         sectionIndex: 0,
         questionIndex: 0
       },
       results: {
-        totalQuestions: test.totalQuestions
+        totalQuestions: totalQuestions
+      },
+      // Add metadata for skill-specific tests
+      metadata: {
+        selectedSkills: skillsToTest,
+        isSkillSpecific: skillsToTest.length < availableSkills.length
       }
     });
 
@@ -319,12 +399,9 @@ exports.getTestPreview = async (req, res) => {
   try {
     const { testId } = req.params;
 
-    const test = await Test.findOne({
-      _id: testId,
-      status: 'active',
-      isPublic: true
-    })
+    const test = await Test.findPublic({ _id: testId })
     .select('title description difficulty duration totalQuestions skills category statistics createdAt')
+    .findOne()
     .lean();
 
     if (!test) {

@@ -10,12 +10,15 @@ import {
   Pause,
   Volume2,
   MessageSquare,
-  Lightbulb
+  Lightbulb,
+  Loader2
 } from 'lucide-react';
 import { toast } from 'react-hot-toast';
+import { uploadAPI } from '../../../services/api';
 
 const SpeakingPart2Editor = ({ part, onChange }) => {
   const [editingFollowUp, setEditingFollowUp] = useState(null);
+  const [uploadingAudio, setUploadingAudio] = useState({});
   const audioInputRefs = useRef({});
 
   const cueCardTemplates = [
@@ -122,7 +125,9 @@ const SpeakingPart2Editor = ({ part, onChange }) => {
       id: `followup-${Date.now()}`,
       text: '',
       audioUrl: '',
-      audioFile: null
+      audioFile: null,
+      audioFilename: '',
+      originalName: ''
     };
     onChange({
       followUpQuestions: [...(part.followUpQuestions || []), newQuestion]
@@ -142,31 +147,52 @@ const SpeakingPart2Editor = ({ part, onChange }) => {
     toast.success('Follow-up question deleted');
   };
 
-  const handleAudioUpload = (questionId, event) => {
+  const handleAudioUpload = async (questionId, event) => {
     const file = event.target.files[0];
     if (!file) return;
 
     // Validate file type
-    const allowedTypes = ['audio/mp3', 'audio/wav', 'audio/ogg', 'audio/m4a'];
+    const allowedTypes = ['audio/mp3', 'audio/wav', 'audio/ogg', 'audio/m4a', 'audio/mpeg'];
     if (!allowedTypes.includes(file.type)) {
       toast.error('Please upload a valid audio file (MP3, WAV, OGG, M4A)');
       return;
     }
 
-    // Validate file size (max 10MB)
-    const maxSize = 10 * 1024 * 1024;
+    // Validate file size (max 50MB)
+    const maxSize = 50 * 1024 * 1024;
     if (file.size > maxSize) {
-      toast.error('File size must be less than 10MB');
+      toast.error('File size must be less than 50MB');
       return;
     }
 
-    const audioUrl = URL.createObjectURL(file);
-    handleFollowUpChange(questionId, {
-      audioFile: file,
-      audioUrl: audioUrl
-    });
+    const uploadKey = questionId;
+    setUploadingAudio(prev => ({ ...prev, [uploadKey]: true }));
+    
+    try {
+      // Upload file to server
+      const response = await uploadAPI.uploadAudio(file);
+      
+      if (response.data.success) {
+        const { data } = response.data;
+        
+        // Update the question with the uploaded file info
+        handleFollowUpChange(questionId, {
+          audioFile: null, // Clear the file object since it's now on server
+          audioUrl: data.url, // Use the server URL
+          audioFilename: data.filename,
+          originalName: data.originalName
+        });
 
-    toast.success('Audio uploaded successfully!');
+        toast.success('Audio uploaded successfully!');
+      } else {
+        throw new Error(response.data.message || 'Upload failed');
+      }
+    } catch (error) {
+      console.error('Upload error:', error);
+      toast.error(error.response?.data?.message || 'Failed to upload audio file');
+    } finally {
+      setUploadingAudio(prev => ({ ...prev, [uploadKey]: false }));
+    }
   };
 
   const addTemplateQuestion = (template) => {
@@ -174,7 +200,9 @@ const SpeakingPart2Editor = ({ part, onChange }) => {
       id: `followup-${Date.now()}`,
       text: template,
       audioUrl: '',
-      audioFile: null
+      audioFile: null,
+      audioFilename: '',
+      originalName: ''
     };
     onChange({
       followUpQuestions: [...(part.followUpQuestions || []), newQuestion]
@@ -398,7 +426,7 @@ const SpeakingPart2Editor = ({ part, onChange }) => {
 
                   {/* Audio Upload */}
                   <div className="flex items-center space-x-3">
-                    {!question.audioUrl ? (
+                    {!question.audioUrl && !uploadingAudio[question.id] ? (
                       <div className="flex items-center space-x-2">
                         <button
                           onClick={() => audioInputRefs.current[question.id]?.click()}
@@ -415,7 +443,12 @@ const SpeakingPart2Editor = ({ part, onChange }) => {
                           className="hidden"
                         />
                       </div>
-                    ) : (
+                    ) : uploadingAudio[question.id] ? (
+                      <div className="flex items-center space-x-2 text-blue-600">
+                        <Loader2 className="w-3 h-3 animate-spin" />
+                        <span className="text-sm">Uploading...</span>
+                      </div>
+                    ) : question.audioUrl ? (
                       <div className="flex items-center space-x-2">
                         <audio
                           controls
@@ -424,14 +457,14 @@ const SpeakingPart2Editor = ({ part, onChange }) => {
                           style={{ maxWidth: '200px' }}
                         />
                         <button
-                          onClick={() => handleFollowUpChange(question.id, { audioUrl: '', audioFile: null })}
+                          onClick={() => handleFollowUpChange(question.id, { audioUrl: '', audioFile: null, audioFilename: '', originalName: '' })}
                           className="p-1 text-red-400 hover:text-red-600"
                           title="Remove audio"
                         >
                           <Trash2 className="w-3 h-3" />
                         </button>
                       </div>
-                    )}
+                    ) : null}
                   </div>
                 </div>
 
